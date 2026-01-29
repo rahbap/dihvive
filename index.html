@@ -2,11 +2,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Penguin Evo: Squash & Slap</title>
+    <title>Penguin Evolution: Snowball Effect</title>
     <style>
         body { margin: 0; background: #cceeff; color: #004466; font-family: 'Segoe UI', sans-serif; overflow: hidden; user-select: none; }
         
-        /* ICE BACKGROUND */
         canvas { 
             display: block; cursor: crosshair; margin-right: 280px; 
             background: radial-gradient(circle, #f0faff 0%, #b3e0ff 100%);
@@ -20,11 +19,11 @@
             padding: 15px; display: flex; flex-direction: column;
             color: white;
             box-shadow: -5px 0 20px rgba(0, 0, 0, 0.5);
-            z-index: 2;
+            z-index: 10;
         }
 
         h2 { color: #55aaff; margin: 0 0 10px 0; font-size: 20px; text-transform: uppercase; border-bottom: 1px solid #335577; padding-bottom: 5px; }
-        .resource { font-size: 28px; color: #00ffaa; font-weight: bold; margin-bottom: 5px; }
+        .resource { font-size: 24px; color: #00ffaa; font-weight: bold; margin-bottom: 5px; }
         .sub-res { font-size: 12px; color: #88ccaa; margin-bottom: 15px; }
         
         #dna-inventory {
@@ -63,24 +62,19 @@
         button:disabled { background: #334455; color: #556677; cursor: not-allowed; }
         
         /* GAME OVER MENU */
-        #game-over-screen {
+        #game-over-menu {
             position: absolute; top: 0; left: 0; right: 280px; bottom: 0;
             background: rgba(0, 20, 40, 0.85);
-            display: none; justify-content: center; align-items: center; flex-direction: column;
-            z-index: 10; backdrop-filter: blur(5px);
+            display: none; align-items: center; justify-content: center; flex-direction: column;
+            backdrop-filter: blur(5px); z-index: 20;
         }
-        .go-box {
-            background: #0d1520; padding: 40px; border-radius: 12px; border: 2px solid #55aaff;
-            text-align: center; box-shadow: 0 0 30px rgba(0, 170, 255, 0.3);
+        .go-title { font-size: 50px; color: white; font-weight: bold; text-shadow: 0 0 20px #00aaff; margin-bottom: 20px; }
+        .go-btn {
+            background: #ffaa00; color: black; font-size: 24px; padding: 15px 40px;
+            border: none; border-radius: 50px; cursor: pointer; font-weight: bold;
+            box-shadow: 0 0 20px rgba(255, 170, 0, 0.5); transition: 0.2s;
         }
-        .go-title { font-size: 40px; color: white; margin-bottom: 10px; font-weight: bold; }
-        .go-sub { font-size: 18px; color: #88ccaa; margin-bottom: 30px; }
-        .btn-retry {
-            background: #00ffaa; color: #003322; font-size: 20px; padding: 15px 40px;
-            border: none; border-radius: 8px; cursor: pointer; font-weight: bold;
-            transition: 0.2s;
-        }
-        .btn-retry:hover { transform: scale(1.1); box-shadow: 0 0 20px #00ffaa; }
+        .go-btn:hover { transform: scale(1.1); background: #ffcc00; }
 
         #msg-overlay {
             position: absolute; top: 20px; left: 20px; pointer-events: none;
@@ -92,20 +86,17 @@
 </head>
 <body>
 
-    <div id="game-over-screen">
-        <div class="go-box">
-            <div class="go-title" id="goTitle">GAME OVER</div>
-            <div class="go-sub" id="goSub">The penguins have fallen.</div>
-            <button class="btn-retry" onclick="startGame()">RETRY MISSION</button>
-        </div>
+    <div id="msg-overlay">
+        <h3 style="margin:0; color:#006699">🐧 RECRUITMENT MODE</h3>
+        <div>1. Defeated enemies <b>JOIN YOUR TEAM</b>.</div>
+        <div>2. You start with 1000 Biomass.</div>
+        <div>3. +10 Biomass every second.</div>
+        <div style="color:#008800; margin-top:5px; font-weight:bold;">Grow your colony!</div>
     </div>
 
-    <div id="msg-overlay">
-        <h3 style="margin:0; color:#006699">🐧 PENGUIN LABS</h3>
-        <div>1. <b>Free DNA</b> included.</div>
-        <div>2. <b>+10 Biomass</b> every second!</div>
-        <div>3. Units get <b>Slapped Back</b> if they drift too far.</div>
-        <div>4. <b>Squash & Stretch</b> physics enabled.</div>
+    <div id="game-over-menu">
+        <div class="go-title">COLONY LOST</div>
+        <button class="go-btn" onclick="location.reload()">TRY AGAIN</button>
     </div>
 
     <div id="lab-panel">
@@ -152,11 +143,28 @@ const MUTATIONS = {
 
 const MUTATION_KEYS = Object.keys(MUTATIONS);
 
-// -- GLOBALS --
-let biomass, gameTime, army, enemies, items, projectiles, particles, inventory;
+// -- GAME STATE --
+let biomass = 1000; // HUGE START
+let gameTime = 0;
+let army = [];
+let enemies = [];
+let items = []; 
+let projectiles = [];
+let particles = [];
+let inventory = {}; 
 let selectedUnit = null;
 let selectedDNA = null;
-let animationFrameId;
+let isGameOver = false;
+
+// Initialize Inventory
+MUTATION_KEYS.forEach(k => inventory[k] = 0);
+
+// STARTER PACK
+inventory['LASER'] = 1;
+inventory['SPIKES'] = 1;
+inventory['SHIELD'] = 1;
+inventory['SHOTGUN'] = 1;
+inventory['HEALER'] = 1;
 
 // -- INPUTS --
 let mouseX = 0, mouseY = 0;
@@ -174,37 +182,34 @@ canvas.addEventListener('mousedown', e => {
 });
 
 // -- DRAWING --
-function drawPenguin(ctx, x, y, size, angle, team, waddle, hpPerc, mutations, vx, vy) {
+function drawPenguin(ctx, x, y, vx, vy, size, angle, team, waddle, hpPerc, mutations) {
     ctx.save();
     ctx.translate(x, y);
-
-    // SQUASH AND STRETCH
-    // Calculate speed
+    
+    // -- SQUASH AND STRETCH --
     let speed = Math.hypot(vx, vy);
-    // Stretch based on speed (max 30% stretch)
-    let stretch = Math.min(speed * 0.04, 0.4); 
+    // Stretch along the direction of movement
+    // Align rotation to movement if moving fast, otherwise aim angle
+    let drawAngle = angle;
     
-    // Rotate to face direction
-    ctx.rotate(angle); 
+    let stretch = Math.min(speed * 0.05, 0.4); // Limit stretch
+    ctx.rotate(drawAngle); 
+    ctx.scale(1 + stretch, 1 - stretch); // Stretch X, Squish Y
+    ctx.rotate(-drawAngle); // Reset rotation to apply waddle logic correctly
     
-    // Apply Squash/Stretch: Scale X (length) up, Scale Y (width) down
-    ctx.scale(1 + stretch, 1 - stretch);
-
-    // Waddle Animation (Rotate body slightly based on movement)
-    ctx.rotate(Math.sin(waddle) * 0.2);
+    ctx.rotate(angle); // Face aim direction
+    ctx.rotate(Math.sin(waddle) * 0.2); // Waddle
 
     // 1. FEET
     ctx.fillStyle = "#ffaa00";
     ctx.beginPath(); ctx.ellipse(5, 5, 5, 3, 0, 0, Math.PI*2); ctx.fill(); 
-    ctx.beginPath(); ctx.ellipse(5, -5, 5, 3, 0, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(5, -5, 5, 3, 0, 0, Math.PI*2); ctx.fill(); 
 
     // 2. MUTATIONS (UNDER)
     mutations.forEach(m => drawMutation(ctx, m, true, size));
 
     // 3. BODY
-    let bodyColor = team === 'blue' ? '#0077aa' : '#aa3333';
-    if(team === 'red') bodyColor = '#cc4444';
-    
+    let bodyColor = team === 'blue' ? '#0077aa' : '#cc4444';
     if(selectedUnit && selectedUnit.x === x && selectedUnit.y === y) {
         ctx.shadowBlur = 15; ctx.shadowColor = "#00ffaa";
     }
@@ -215,7 +220,7 @@ function drawPenguin(ctx, x, y, size, angle, team, waddle, hpPerc, mutations, vx
     ctx.fill();
     ctx.shadowBlur = 0;
 
-    // 4. BELLY (White)
+    // 4. BELLY
     ctx.fillStyle = "white";
     ctx.beginPath();
     ctx.ellipse(2, 0, size * 0.9, size * 0.7, 0, 0, Math.PI*2);
@@ -223,9 +228,9 @@ function drawPenguin(ctx, x, y, size, angle, team, waddle, hpPerc, mutations, vx
 
     // 5. EYES
     ctx.fillStyle = "black";
-    ctx.beginPath(); ctx.arc(6, -4, 2, 0, Math.PI*2); ctx.fill();
-    ctx.beginPath(); ctx.arc(6, 4, 2, 0, Math.PI*2); ctx.fill();
-    ctx.fillStyle = "white";
+    ctx.beginPath(); ctx.arc(6, -4, 2, 0, Math.PI*2); ctx.fill(); 
+    ctx.beginPath(); ctx.arc(6, 4, 2, 0, Math.PI*2); ctx.fill(); 
+    ctx.fillStyle = "white"; 
     ctx.beginPath(); ctx.arc(7, -5, 0.5, 0, Math.PI*2); ctx.fill();
     ctx.beginPath(); ctx.arc(7, 3, 0.5, 0, Math.PI*2); ctx.fill();
     
@@ -237,9 +242,7 @@ function drawPenguin(ctx, x, y, size, angle, team, waddle, hpPerc, mutations, vx
 
     // 6. BEAK
     ctx.fillStyle = "#ffaa00";
-    ctx.beginPath();
-    ctx.moveTo(10, -2); ctx.lineTo(18, 0); ctx.lineTo(10, 2);
-    ctx.fill();
+    ctx.beginPath(); ctx.moveTo(10, -2); ctx.lineTo(18, 0); ctx.lineTo(10, 2); ctx.fill();
 
     // 7. WINGS
     ctx.fillStyle = bodyColor;
@@ -249,15 +252,15 @@ function drawPenguin(ctx, x, y, size, angle, team, waddle, hpPerc, mutations, vx
     // 8. MUTATIONS (OVER)
     mutations.forEach(m => drawMutation(ctx, m, false, size));
 
-    // 9. HP BAR (Undo transformations so it floats nicely)
-    // We reverse the waddle, reverse scale, reverse angle
-    ctx.scale(1 / (1+stretch), 1 / (1-stretch));
+    // 9. HP BAR
     ctx.rotate(-Math.sin(waddle) * 0.2); 
     ctx.rotate(-angle); 
+    // Un-scale so HP bar doesn't stretch
+    ctx.scale(1/(1 + stretch), 1/(1 - stretch));
     
-    ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-15, -28, 30, 6);
+    ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-15, -25, 30, 6);
     ctx.fillStyle = hpPerc > 0.5 ? "#00ff00" : "#ff0000"; 
-    ctx.fillRect(-14, -27, 28 * hpPerc, 4);
+    ctx.fillRect(-14, -24, 28 * hpPerc, 4);
 
     ctx.restore();
 }
@@ -280,7 +283,7 @@ function drawMutation(ctx, key, isUnder, size) {
     }
 }
 
-// -- CREATURE LOGIC --
+// -- CLASS --
 class Creature {
     constructor(x, y, team, mutations = []) {
         this.id = Math.floor(Math.random()*10000);
@@ -295,12 +298,6 @@ class Creature {
         this.accel = 0.25; 
         this.waddleOffset = Math.random() * 100;
         
-        // Enemy Nerf
-        if (team === 'red') {
-            this.hp = 70; this.maxHp = 70; // Weaker enemies
-            this.accel = 0.2; // Slower enemies
-        }
-
         this.cooldowns = { slot0: 0, slot1: 0, melee: 0 };
         
         if(this.mutations.length > 0) {
@@ -314,6 +311,16 @@ class Creature {
     update() {
         this.vx *= this.friction;
         this.vy *= this.friction;
+
+        // -- CENTER SLAP (Boundary Force) --
+        // Pushes units back to center if they get too close to edge
+        const margin = 50;
+        const pushBack = 0.5;
+        if(this.x < margin) this.vx += pushBack;
+        if(this.x > canvas.width - margin) this.vx -= pushBack;
+        if(this.y < margin) this.vy += pushBack;
+        if(this.y > canvas.height - margin) this.vy -= pushBack;
+
 
         let target = this.findTarget();
 
@@ -335,8 +342,8 @@ class Creature {
                 }
             } else {
                 if (dist < 120 && this.cooldowns.melee <= 0) {
-                    this.vx += Math.cos(angleToTarget) * 5; 
-                    this.vy += Math.sin(angleToTarget) * 5;
+                    this.vx += Math.cos(angleToTarget) * 6; // Stronger dash for stretch effect
+                    this.vy += Math.sin(angleToTarget) * 6;
                     this.cooldowns.melee = 50; 
                     createParticles(this.x, this.y, "white", 3);
                 } else {
@@ -345,11 +352,13 @@ class Creature {
                 }
             }
 
+            // Abilities
             this.mutations.forEach((mut, index) => {
                 let cdKey = 'slot'+index;
                 if(this.cooldowns[cdKey] <= 0) this.useAbility(mut, target, dist, cdKey);
             });
 
+            // Collision
             if(dist < this.size + target.size) {
                 let dmg = 2;
                 let impact = Math.hypot(this.vx, this.vy);
@@ -360,6 +369,7 @@ class Creature {
                 
                 target.takeDamage(dmg);
 
+                // Bounce
                 let pushForce = 4;
                 let pushDir = Math.atan2(this.y - target.y, this.x - target.x);
                 this.vx = Math.cos(pushDir) * pushForce;
@@ -395,20 +405,9 @@ class Creature {
         this.x += this.vx;
         this.y += this.vy;
 
-        // --- EDGE SLAP LOGIC ---
-        // Instead of hard bounce, apply a strong force if near edge
-        const margin = 50;
-        const slapForce = 1.0;
-        
-        if(this.x < margin) { this.vx += slapForce; createParticles(this.x, this.y, "#aaf", 1); }
-        if(this.x > canvas.width - margin) { this.vx -= slapForce; createParticles(this.x, this.y, "#aaf", 1); }
-        if(this.y < margin) { this.vy += slapForce; createParticles(this.x, this.y, "#aaf", 1); }
-        if(this.y > canvas.height - margin) { this.vy -= slapForce; createParticles(this.x, this.y, "#aaf", 1); }
-        
-        // Hard clamp just in case
-        this.x = Math.max(10, Math.min(canvas.width-10, this.x));
-        this.y = Math.max(10, Math.min(canvas.height-10, this.y));
-        // -----------------------
+        // Hard Bounds (just in case)
+        if(this.x < 0) this.x = 0; if(this.x > canvas.width) this.x = canvas.width;
+        if(this.y < 0) this.y = 0; if(this.y > canvas.height) this.y = canvas.height;
 
         if(this.cooldowns.slot0 > 0) this.cooldowns.slot0--;
         if(this.cooldowns.slot1 > 0) this.cooldowns.slot1--;
@@ -418,7 +417,7 @@ class Creature {
     draw() {
         let speed = Math.hypot(this.vx, this.vy);
         let waddle = speed > 0.1 ? Math.sin((gameTime + this.waddleOffset) * 0.3) * 0.3 : 0;
-        drawPenguin(ctx, this.x, this.y, this.size, this.angle, this.team, waddle, this.hp/this.maxHp, this.mutations, this.vx, this.vy);
+        drawPenguin(ctx, this.x, this.y, this.vx, this.vy, this.size, this.angle, this.team, waddle, this.hp/this.maxHp, this.mutations);
     }
 
     findTarget() {
@@ -437,36 +436,42 @@ class Creature {
         if(key === 'SNIPER' && dist < 600) { spawnProj(this, target, 'SNIPER'); this.cooldowns[cdKey] = 120; }
         if(key === 'FLAME' && dist < 120) { spawnProj(this, target, 'FLAME'); this.cooldowns[cdKey] = 5; }
         if(key === 'MISSILE' && dist < 450) { spawnProj(this, target, 'MISSILE'); this.cooldowns[cdKey] = 100; }
+        
         if(key === 'BLINK' && dist > 150) {
-            this.x = target.x + (Math.random()*60-30); this.y = target.y + (Math.random()*60-30);
-            createParticles(this.x, this.y, "#aa00ff", 10); this.cooldowns[cdKey] = 100;
+            this.x = target.x + (Math.random()*60-30);
+            this.y = target.y + (Math.random()*60-30);
+            createParticles(this.x, this.y, "#aa00ff", 10);
+            this.cooldowns[cdKey] = 100;
         }
-        if(key === 'TESLA' && dist < 120) { drawLightning(this.x, this.y, target.x, target.y); target.takeDamage(10); this.cooldowns[cdKey] = 40; }
+        if(key === 'TESLA' && dist < 120) {
+            drawLightning(this.x, this.y, target.x, target.y);
+            target.takeDamage(10);
+            this.cooldowns[cdKey] = 40;
+        }
         if(key === 'REPULSE' && dist < 80) {
              let a = Math.atan2(target.y - this.y, target.x - this.x);
-             target.vx += Math.cos(a) * 12; target.vy += Math.sin(a) * 12; this.cooldowns[cdKey] = 30;
+             target.vx += Math.cos(a) * 12;
+             target.vy += Math.sin(a) * 12;
+             this.cooldowns[cdKey] = 30;
         }
         if(key === 'HEALER') {
             let mates = this.team === 'blue' ? army : enemies;
-            mates.forEach(m => { if(m !== this && Math.hypot(m.x-this.x, m.y-this.y) < 100) m.hp = Math.min(m.hp + 0.3, m.maxHp); });
+            mates.forEach(m => {
+                if(m !== this && Math.hypot(m.x-this.x, m.y-this.y) < 100) m.hp = Math.min(m.hp + 0.3, m.maxHp);
+            });
         }
     }
 
     takeDamage(amt) {
-        if(this.mutations.includes('SHIELD') && Math.random() < 0.3) { createParticles(this.x, this.y, "cyan", 2); return; }
-        this.hp -= amt;
-        if(this.hp <= 0) {
-            if(this.mutations.includes('BOMB') || this.mutations.includes('NUKE')) {
-                createExplosion(this.x, this.y, 150, "orange");
-                let targets = this.team === 'blue' ? enemies : army;
-                targets.forEach(t => { if(Math.hypot(t.x-this.x, t.y-this.y) < 150) { t.takeDamage(50); let a = Math.atan2(t.y-this.y, t.x-this.x); t.vx += Math.cos(a)*15; t.vy += Math.sin(a)*15; } });
-            }
-            createParticles(this.x, this.y, "red", 10);
+        if(this.mutations.includes('SHIELD') && Math.random() < 0.3) {
+            createParticles(this.x, this.y, "cyan", 2);
+            return;
         }
+        this.hp -= amt;
     }
 }
 
-// -- PROJECTILES & EFFECTS --
+// -- PROJECTILES --
 class Projectile {
     constructor(owner, target, type, angleOffset = 0) {
         this.x = owner.x; this.y = owner.y;
@@ -474,14 +479,25 @@ class Projectile {
         let a = Math.atan2(target.y - owner.y, target.x - owner.x) + angleOffset;
         this.vx = Math.cos(a); this.vy = Math.sin(a);
         this.target = target;
-        let stats = { LASER: { spd: 8, life: 60, color: 'red', w: 3 }, SNIPER: { spd: 15, life: 60, color: '#0f0', w: 2 }, SHOTGUN: { spd: 6, life: 25, color: 'white', w: 4 }, FLAME: { spd: 4, life: 20, color: 'orange', w: 6 }, MISSILE: { spd: 3, life: 150, color: 'orange', w: 6 } };
+        
+        let stats = {
+            LASER: { spd: 8, life: 60, color: 'red', w: 3 },
+            SNIPER: { spd: 15, life: 60, color: '#0f0', w: 2 },
+            SHOTGUN: { spd: 6, life: 25, color: 'white', w: 4 },
+            FLAME: { spd: 4, life: 20, color: 'orange', w: 6 },
+            MISSILE: { spd: 3, life: 150, color: 'orange', w: 6 }
+        };
         this.props = stats[type] || stats.LASER;
         this.vx *= this.props.spd; this.vy *= this.props.spd;
         this.life = this.props.life;
     }
     update() {
-        if(this.type === 'MISSILE' && this.target && this.target.hp>0) { let a = Math.atan2(this.target.y-this.y, this.target.x-this.x); this.vx = Math.cos(a)*this.props.spd; this.vy = Math.sin(a)*this.props.spd; }
+        if(this.type === 'MISSILE' && this.target && this.target.hp>0) {
+            let a = Math.atan2(this.target.y-this.y, this.target.x-this.x);
+            this.vx = Math.cos(a)*this.props.spd; this.vy = Math.sin(a)*this.props.spd;
+        }
         this.x += this.vx; this.y += this.vy; this.life--;
+        
         let pool = this.owner.team === 'blue' ? enemies : army;
         for(let t of pool) {
             if(Math.hypot(t.x-this.x, t.y-this.y) < t.size + 10) {
@@ -490,19 +506,22 @@ class Projectile {
                 if(this.type==='SHOTGUN') { dmg = 8; t.vx += this.vx*0.5; t.vy += this.vy*0.5; }
                 if(this.type==='FLAME') dmg = 2;
                 if(this.type==='MISSILE') { dmg=30; createExplosion(this.x,this.y, 40, "orange"); }
-                t.takeDamage(dmg); this.life = 0; break;
+                t.takeDamage(dmg);
+                this.life = 0; break;
             }
         }
     }
     draw() { ctx.fillStyle = this.props.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.props.w, 0, Math.PI*2); ctx.fill(); }
 }
+
+// -- SYSTEMS --
 function spawnDNA(x, y, type) { items.push({x, y, type, life: 1000}); }
 function spawnProj(o, t, type, off=0) { projectiles.push(new Projectile(o, t, type, off)); }
 function drawLightning(x1,y1,x2,y2) { ctx.strokeStyle="yellow"; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo((x1+x2)/2+(Math.random()*20-10), (y1+y2)/2+(Math.random()*20-10)); ctx.lineTo(x2,y2); ctx.stroke(); }
 function createExplosion(x,y,r,c) { ctx.fillStyle=c; ctx.globalAlpha=0.5; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
 function createParticles(x,y,c,n) { for(let i=0; i<n; i++) particles.push({x,y,vx:(Math.random()-0.5)*5, vy:(Math.random()-0.5)*5,c,life:1}); }
 
-// -- UI HELPERS --
+// -- UI --
 function renderInventory() {
     const div = document.getElementById('dna-inventory'); div.innerHTML = "";
     MUTATION_KEYS.forEach(k => {
@@ -535,84 +554,79 @@ function injectMutation() {
     }
 }
 
-// -- MAIN GAME LOOP --
-function startGame() {
-    // Reset Data
-    biomass = 1000; // SUPER EASY
-    gameTime = 0;
-    army = [];
-    enemies = [];
-    items = [];
-    projectiles = [];
-    particles = [];
-    
-    // Reset Inventory
-    MUTATION_KEYS.forEach(k => inventory[k] = 0);
-    inventory['LASER'] = 2; inventory['SPIKES'] = 2; inventory['SHIELD'] = 2; inventory['SHOTGUN'] = 2;
-
-    // Spawn Player Army
-    for(let i=0; i<4; i++) army.push(new Creature(200, 300 + (i*40), 'blue'));
-    
-    // UI Reset
-    document.getElementById('game-over-screen').style.display = 'none';
-    renderInventory();
-    
-    if(animationFrameId) cancelAnimationFrame(animationFrameId);
-    loop();
-}
+// -- STARTUP --
+for(let i=0; i<4; i++) army.push(new Creature(200, 300 + (i*40), 'blue'));
 
 function loop() {
-    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(isGameOver) return;
+    
+    ctx.clearRect(0,0,canvas.width,canvas.height); 
     gameTime++;
 
-    // SUPER PASSIVE INCOME
-    if(gameTime % 60 === 0) biomass += 10; // +10/sec
+    // PASSIVE INCOME (Faster)
+    if(gameTime % 60 === 0) biomass += 10;
 
     // SPAWN
-    let spawnRate = 0.003; // Even Slower spawn
+    let spawnRate = 0.005; 
     if(enemies.length < 2 + (army.length/2) && Math.random() < spawnRate) {
         let type = MUTATION_KEYS[Math.floor(Math.random()*MUTATION_KEYS.length)];
         enemies.push(new Creature(canvas.width, Math.random()*canvas.height, 'red', [type]));
     }
 
+    // UPDATE ENTITIES
     [...army, ...enemies].forEach(c => { c.update(); c.draw(); });
     
-    // Clean
+    // CLEANUP & CONVERSION MECHANIC
     for(let i=army.length-1; i>=0; i--) if(army[i].hp<=0) army.splice(i,1);
+    
     for(let i=enemies.length-1; i>=0; i--) {
         if(enemies[i].hp<=0) {
-            let type = enemies[i].mutations[0]; if(type) spawnDNA(enemies[i].x, enemies[i].y, type);
-            biomass += 20; enemies.splice(i,1);
+            let e = enemies[i];
+            
+            // 1. Drop DNA
+            let type = e.mutations[0]; if(type) spawnDNA(e.x, e.y, type);
+            
+            // 2. CONVERT TO ALLY (The Pick Up mechanic)
+            e.team = 'blue';
+            e.hp = e.maxHp * 0.5; // Heal to 50%
+            e.vx = 0; e.vy = 0; // Stop momentum
+            army.push(e); // Add to our army
+            
+            // Visual Feedback
+            createParticles(e.x, e.y, "pink", 15); // Hearts/Love
+            
+            // Remove from enemy list
+            enemies.splice(i,1);
         }
     }
+
     for(let i=projectiles.length-1; i>=0; i--) { projectiles[i].update(); projectiles[i].draw(); if(projectiles[i].life<=0) projectiles.splice(i,1); }
     for(let i=items.length-1; i>=0; i--) {
         let it = items[i]; it.life--;
         ctx.fillStyle = MUTATIONS[it.type].color; ctx.beginPath(); 
-        ctx.moveTo(it.x, it.y); ctx.lineTo(it.x-5, it.y-10); ctx.lineTo(it.x+5, it.y-10); ctx.fill();
+        ctx.moveTo(it.x, it.y); ctx.lineTo(it.x-5, it.y-10); ctx.lineTo(it.x+5, it.y-10); ctx.fill(); // Vial shape
         ctx.fillStyle="#004466"; ctx.font="10px Arial"; ctx.fillText("DNA", it.x-10, it.y+10);
-        if(Math.hypot(mouseX-it.x, mouseY-it.y) < 30) { inventory[it.type]++; renderInventory(); biomass += 5; items.splice(i,1); }
+        if(Math.hypot(mouseX-it.x, mouseY-it.y) < 35) { inventory[it.type]++; renderInventory(); biomass += 5; items.splice(i,1); }
         else if(it.life<=0) items.splice(i,1);
     }
     
-    // Snow
+    // SNOW PARTICLES
     if(Math.random()<0.3) particles.push({x: Math.random()*canvas.width, y: 0, vx: (Math.random()-0.5), vy: Math.random()*2+1, c: 'white', life: 200});
     for(let i=particles.length-1; i>=0; i--) { let p = particles[i]; p.x+=p.vx; p.y+=p.vy; p.life--; ctx.globalAlpha=p.life/100; ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,Math.random()*2,0,Math.PI*2); ctx.fill(); if(p.life<=0) particles.splice(i,1); }
     ctx.globalAlpha=1;
 
     document.getElementById('bioDisplay').innerText = biomass;
     
-    // CHECK GAME OVER
-    if(army.length === 0 && biomass < 50) {
-        document.getElementById('game-over-screen').style.display = 'flex';
-        // Stop loop
-    } else {
-        animationFrameId = requestAnimationFrame(loop);
+    // GAME OVER CHECK
+    if(army.length === 0) { 
+        isGameOver = true;
+        document.getElementById('game-over-menu').style.display = 'flex';
     }
+    else requestAnimationFrame(loop);
 }
 
-// Start
-startGame();
+renderInventory();
+loop();
 </script>
 </body>
 </html>
