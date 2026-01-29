@@ -2,77 +2,96 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Gene Lab: Kinetic Combat</title>
+    <title>Penguin Evolution: Mutant Lab</title>
     <style>
-        body { margin: 0; background: #050505; color: white; font-family: 'Segoe UI', monospace; overflow: hidden; user-select: none; }
-        canvas { display: block; cursor: crosshair; margin-right: 250px; }
+        body { margin: 0; background: #cceeff; color: #004466; font-family: 'Segoe UI', sans-serif; overflow: hidden; user-select: none; }
         
-        /* UI STYLING */
+        /* ICE BACKGROUND */
+        canvas { 
+            display: block; cursor: crosshair; margin-right: 280px; 
+            background: radial-gradient(circle, #f0faff 0%, #b3e0ff 100%);
+        }
+        
+        /* UI PANEL */
         #lab-panel {
-            position: absolute; right: 0; top: 0; bottom: 0; width: 260px;
-            background: #111; border-left: 2px solid #00aaff;
-            padding: 10px; display: flex; flex-direction: column;
-            box-shadow: -5px 0 20px rgba(0, 170, 255, 0.2);
+            position: absolute; right: 0; top: 0; bottom: 0; width: 280px;
+            background: linear-gradient(to bottom, #1a2a3a, #0d1520); 
+            border-left: 4px solid #55aaff;
+            padding: 15px; display: flex; flex-direction: column;
+            color: white;
+            box-shadow: -5px 0 20px rgba(0, 0, 0, 0.5);
         }
 
-        h2 { color: #00aaff; margin: 0 0 10px 0; font-size: 18px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; }
-        .resource { font-size: 20px; color: #00e676; font-weight: bold; margin-bottom: 15px; }
+        h2 { color: #55aaff; margin: 0 0 10px 0; font-size: 20px; text-transform: uppercase; border-bottom: 1px solid #335577; padding-bottom: 5px; }
+        .resource { font-size: 24px; color: #00ffaa; font-weight: bold; margin-bottom: 5px; }
+        .sub-res { font-size: 12px; color: #88ccaa; margin-bottom: 15px; }
         
         #dna-inventory {
-            flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;
-            margin-bottom: 10px;
+            flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;
+            margin-bottom: 10px; padding-right: 5px;
         }
+
+        /* CUSTOM SCROLLBAR */
+        #dna-inventory::-webkit-scrollbar { width: 6px; }
+        #dna-inventory::-webkit-scrollbar-thumb { background: #335577; border-radius: 3px; }
 
         .dna-item {
-            background: #222; padding: 8px; border-radius: 4px; cursor: pointer;
+            background: #253545; padding: 10px; border-radius: 6px; cursor: pointer;
             display: flex; justify-content: space-between; align-items: center;
-            border: 1px solid #333; transition: 0.2s;
+            border: 1px solid #334455; transition: 0.2s;
         }
-        .dna-item:hover { background: #333; border-color: #666; }
-        .dna-item.selected { border-color: #00aaff; background: #002233; }
+        .dna-item:hover { background: #304050; border-color: #55aaff; transform: translateX(-2px); }
+        .dna-item.selected { border-color: #00ffaa; background: #1a3a4a; box-shadow: 0 0 10px rgba(0,255,170,0.2); }
         
         #unit-inspector {
-            height: 200px; background: #001122; border-radius: 4px; padding: 10px;
-            border: 1px solid #004466; display: none; flex-direction: column;
+            height: 220px; background: #101820; border-radius: 8px; padding: 15px;
+            border: 1px solid #335577; display: none; flex-direction: column;
         }
         .slot {
-            background: #000; height: 30px; margin: 5px 0; border: 1px dashed #444;
-            display: flex; align-items: center; justify-content: center; font-size: 12px; color: #555;
+            background: #000; height: 35px; margin: 5px 0; border: 1px dashed #446688; border-radius: 4px;
+            display: flex; align-items: center; justify-content: center; font-size: 13px; color: #6688aa;
         }
-        .slot.filled { border: 1px solid #00aaff; color: #00aaff; background: #002233; }
+        .slot.filled { border: 1px solid #55aaff; color: #fff; background: #003344; font-weight: bold; text-shadow: 0 0 5px #00aaff; }
 
         button {
-            background: #00aaff; color: black; border: none; padding: 10px;
-            font-weight: bold; cursor: pointer; margin-top: 10px; border-radius: 4px;
+            background: #55aaff; color: #002233; border: none; padding: 12px;
+            font-weight: bold; cursor: pointer; margin-top: auto; border-radius: 6px;
+            text-transform: uppercase; letter-spacing: 1px; transition: 0.2s;
         }
-        button:disabled { background: #333; color: #555; cursor: not-allowed; }
+        button:hover:not(:disabled) { background: #88ccff; box-shadow: 0 0 15px #55aaff; }
+        button:disabled { background: #334455; color: #556677; cursor: not-allowed; }
         
         #msg-overlay {
-            position: absolute; top: 10px; left: 10px; pointer-events: none;
-            text-shadow: 1px 1px 2px black; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;
+            position: absolute; top: 20px; left: 20px; pointer-events: none;
+            background: rgba(255,255,255,0.7); padding: 15px; border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1); border: 2px solid #fff;
+            color: #003344;
         }
     </style>
 </head>
 <body>
 
     <div id="msg-overlay">
-        <h3 style="margin:0; color:#00aaff">HOW TO PLAY</h3>
-        <div>1. <b>Collect DNA</b> dropped by enemies.</div>
-        <div>2. <b>Click</b> your Blue Units to upgrade them.</div>
-        <div>3. <b>Inject DNA</b> in the right panel.</div>
-        <div style="color:yellow; margin-top:5px;">New: Units now Dash & Bounce!</div>
+        <h3 style="margin:0; color:#006699">🐧 PENGUIN LABS</h3>
+        <div>1. You have <b>Free DNA</b> in your list!</div>
+        <div>2. Click a Blue Penguin -> Select DNA -> <b>Inject</b>.</div>
+        <div>3. You get <b>+5 Biomass</b> automatically every second.</div>
+        <div style="color:#cc0000; margin-top:5px; font-weight:bold;">Defend the Ice Shelf!</div>
     </div>
 
     <div id="lab-panel">
-        <h2>Biomass: <span id="bioDisplay" class="resource">300</span></h2>
-        <h2>DNA Storage</h2>
+        <h2>Biomass</h2>
+        <div id="bioDisplay" class="resource">500</div>
+        <div class="sub-res">+5 generated / sec</div>
+        
+        <h2>DNA Freezer</h2>
         <div id="dna-inventory"></div>
 
         <div id="unit-inspector">
-            <h3 style="margin:0; font-size:14px; color:white;">Unit Config</h3>
-            <div class="slot" id="slot1">Empty Slot</div>
-            <div class="slot" id="slot2">Empty Slot</div>
-            <button id="btnInject" onclick="injectMutation()">INJECT (Cost: 50)</button>
+            <h3 style="margin:0; font-size:14px; color:#55aaff; border-bottom:1px solid #333; padding-bottom:5px;">Penguin Modding</h3>
+            <div class="slot" id="slot1">Empty Gene Slot</div>
+            <div class="slot" id="slot2">Empty Gene Slot</div>
+            <button id="btnInject" onclick="injectMutation()">INJECT GENE</button>
         </div>
     </div>
 
@@ -81,39 +100,31 @@
 <script>
 const canvas = document.getElementById('simCanvas');
 const ctx = canvas.getContext('2d');
-canvas.width = window.innerWidth - 260; 
+canvas.width = window.innerWidth - 280; 
 canvas.height = window.innerHeight;
 
 // -- CONFIG --
 const MUTATIONS = {
-    // RANGED
-    LASER: { name: 'Laser', color: '#ff0055', type: 'range' },
-    SHOTGUN: { name: 'Shotgun', color: '#ffffff', type: 'range' },
-    SNIPER: { name: 'Sniper', color: '#00ff00', type: 'range' },
-    MISSILE: { name: 'Missile', color: '#ffaa00', type: 'range' },
-    WEB: { name: 'Web Gun', color: '#eeeeee', type: 'range' },
-    FREEZE: { name: 'Ice Ray', color: '#aaddff', type: 'range' },
-    FLAME: { name: 'Flamethrower', color: '#ff4400', type: 'range' },
-
-    // MELEE / TANK / UTILITY
-    SPIKES: { name: 'Spikes', color: '#888888', type: 'melee' },
-    SAW: { name: 'Sawblade', color: '#cccccc', type: 'melee' },
-    SHIELD: { name: 'Shield', color: '#00ffff', type: 'tank' },
-    HEALER: { name: 'Healer', color: '#00ffaa', type: 'support' },
-    TESLA: { name: 'Tesla', color: '#ffff00', type: 'melee' },
-    REPULSE: { name: 'Repulsor', color: '#ff00ff', type: 'tank' },
+    LASER: { name: 'Laser Eyes', color: '#ff0055', type: 'range' },
+    SHOTGUN: { name: 'Snow Blaster', color: '#ffffff', type: 'range' },
+    SNIPER: { name: 'Icicle Sniper', color: '#00ff00', type: 'range' },
+    MISSILE: { name: 'Fish Missile', color: '#ffaa00', type: 'range' },
+    SPIKES: { name: 'Spiked Armor', color: '#555555', type: 'melee' },
+    SAW: { name: 'Buzz Saw', color: '#cccccc', type: 'melee' },
+    SHIELD: { name: 'Bubble Shield', color: '#00ffff', type: 'tank' },
+    HEALER: { name: 'Medic Aura', color: '#00ffaa', type: 'support' },
+    TESLA: { name: 'Shock Coil', color: '#ffff00', type: 'melee' },
+    REPULSE: { name: 'Wind Blower', color: '#ff00ff', type: 'tank' },
     NUKE: { name: 'Nuke', color: '#33ff00', type: 'tank' },
-    GRAVITY: { name: 'Black Hole', color: '#220044', type: 'support' },
-    NECRO: { name: 'Necro', color: '#440000', type: 'support' },
-    BLINK: { name: 'Blink', color: '#aa00ff', type: 'melee' },
-    BOMB: { name: 'Bomb', color: '#ff5500', type: 'tank' },
-    ORBITAL: { name: 'Orbital', color: 'gold', type: 'melee' }
+    GRAVITY: { name: 'Vacuum', color: '#220044', type: 'support' },
+    BLINK: { name: 'Teleporter', color: '#aa00ff', type: 'melee' },
+    FLAME: { name: 'Flamethrower', color: '#ff4400', type: 'range' }
 };
 
 const MUTATION_KEYS = Object.keys(MUTATIONS);
 
 // -- GAME STATE --
-let biomass = 300; // Easy Start
+let biomass = 500; // SUPER EASY START
 let gameTime = 0;
 let army = [];
 let enemies = [];
@@ -124,7 +135,14 @@ let inventory = {};
 let selectedUnit = null;
 let selectedDNA = null;
 
+// Initialize Inventory
 MUTATION_KEYS.forEach(k => inventory[k] = 0);
+
+// STARTER PACK (FREE ITEMS)
+inventory['LASER'] = 1;
+inventory['SPIKES'] = 1;
+inventory['SHIELD'] = 1;
+inventory['SHOTGUN'] = 1;
 
 // -- INPUTS --
 let mouseX = 0, mouseY = 0;
@@ -132,7 +150,7 @@ canvas.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clien
 canvas.addEventListener('mousedown', e => {
     let clicked = false;
     for(let u of army) {
-        if(Math.hypot(u.x - mouseX, u.y - mouseY) < u.size + 10) {
+        if(Math.hypot(u.x - mouseX, u.y - mouseY) < u.size + 15) {
             selectUnit(u);
             clicked = true;
             break;
@@ -141,47 +159,135 @@ canvas.addEventListener('mousedown', e => {
     if(!clicked) deselectUnit();
 });
 
-// -- PHYSICS & CLASSES --
+// -- PENGUIN DRAWING FUNCTION --
+function drawPenguin(ctx, x, y, size, angle, team, waddle, hpPerc, mutations) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle); // Face direction
+    
+    // Waddle Animation (Rotate body slightly based on movement)
+    ctx.rotate(Math.sin(waddle) * 0.2);
 
+    // 1. FEET
+    ctx.fillStyle = "#ffaa00";
+    ctx.beginPath(); ctx.ellipse(5, 5, 5, 3, 0, 0, Math.PI*2); ctx.fill(); // Right foot
+    ctx.beginPath(); ctx.ellipse(5, -5, 5, 3, 0, 0, Math.PI*2); ctx.fill(); // Left foot
+
+    // 2. MUTATIONS (UNDER)
+    mutations.forEach(m => drawMutation(ctx, m, true, size));
+
+    // 3. BODY
+    // Team colors: Blue = Player, Red = Enemy
+    let bodyColor = team === 'blue' ? '#0077aa' : '#aa3333';
+    if(team === 'red') bodyColor = '#cc4444'; // Redder for bad penguins
+    
+    // Highlight if selected
+    if(selectedUnit && selectedUnit.x === x && selectedUnit.y === y) {
+        ctx.shadowBlur = 15; ctx.shadowColor = "#00ffaa";
+    }
+
+    ctx.fillStyle = bodyColor;
+    // Egg shape for body
+    ctx.beginPath();
+    ctx.ellipse(0, 0, size * 1.2, size, 0, 0, Math.PI*2);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+
+    // 4. BELLY (White)
+    ctx.fillStyle = "white";
+    ctx.beginPath();
+    ctx.ellipse(2, 0, size * 0.9, size * 0.7, 0, 0, Math.PI*2);
+    ctx.fill();
+
+    // 5. EYES
+    ctx.fillStyle = "black";
+    ctx.beginPath(); ctx.arc(6, -4, 2, 0, Math.PI*2); ctx.fill(); // Left
+    ctx.beginPath(); ctx.arc(6, 4, 2, 0, Math.PI*2); ctx.fill(); // Right
+    ctx.fillStyle = "white"; // Eye shine
+    ctx.beginPath(); ctx.arc(7, -5, 0.5, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.arc(7, 3, 0.5, 0, Math.PI*2); ctx.fill();
+    
+    // Angry eyebrows for enemies
+    if(team === 'red') {
+        ctx.strokeStyle = "black"; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(4, -7); ctx.lineTo(8, -2); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(4, 7); ctx.lineTo(8, 2); ctx.stroke();
+    }
+
+    // 6. BEAK
+    ctx.fillStyle = "#ffaa00";
+    ctx.beginPath();
+    ctx.moveTo(10, -2);
+    ctx.lineTo(18, 0);
+    ctx.lineTo(10, 2);
+    ctx.fill();
+
+    // 7. WINGS (Flippers)
+    ctx.fillStyle = bodyColor;
+    ctx.beginPath(); ctx.ellipse(-5, -size, 8, 3, Math.PI/4, 0, Math.PI*2); ctx.fill();
+    ctx.beginPath(); ctx.ellipse(-5, size, 8, 3, -Math.PI/4, 0, Math.PI*2); ctx.fill();
+
+    // 8. MUTATIONS (OVER)
+    mutations.forEach(m => drawMutation(ctx, m, false, size));
+
+    // 9. HP BAR
+    ctx.rotate(-Math.sin(waddle) * 0.2); // Undo waddle for bar
+    ctx.rotate(-angle); // Undo rotation for bar so it stays flat
+    ctx.fillStyle = "rgba(0,0,0,0.5)"; ctx.fillRect(-15, -25, 30, 6);
+    ctx.fillStyle = hpPerc > 0.5 ? "#00ff00" : "#ff0000"; 
+    ctx.fillRect(-14, -24, 28 * hpPerc, 4);
+
+    ctx.restore();
+}
+
+function drawMutation(ctx, key, isUnder, size) {
+    if(isUnder) {
+        if(key === 'SPIKES') { ctx.fillStyle = "#555"; for(let i=0; i<6; i++) { ctx.rotate(1); ctx.beginPath(); ctx.moveTo(size, -3); ctx.lineTo(size+8, 0); ctx.lineTo(size, 3); ctx.fill(); } }
+        if(key === 'SAW') { ctx.rotate(Date.now()/100); ctx.fillStyle = "#bbb"; ctx.beginPath(); for(let i=0; i<8; i++) { ctx.rotate(Math.PI/4); ctx.lineTo(size+12, 0); ctx.lineTo(size+4, 4); } ctx.fill(); }
+        if(key === 'SHIELD') { ctx.strokeStyle = "rgba(0,255,255,0.6)"; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(0,0, size+10, 0, Math.PI*2); ctx.stroke(); }
+        if(key === 'REPULSE') { ctx.strokeStyle = "magenta"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,size+5, 0, Math.PI*2); ctx.stroke(); }
+        if(key === 'HEALER') { ctx.fillStyle = "rgba(0,255,100,0.2)"; ctx.beginPath(); ctx.arc(0,0, 60, 0, Math.PI*2); ctx.fill(); }
+    } else {
+        // Weapons mount on the side/back
+        if(key === 'LASER') { ctx.fillStyle = "#333"; ctx.fillRect(-5, -18, 15, 6); ctx.fillStyle="red"; ctx.fillRect(10, -17, 2, 4); }
+        if(key === 'SNIPER') { ctx.fillStyle = "#222"; ctx.fillRect(-5, -18, 25, 4); ctx.fillStyle="#0f0"; ctx.fillRect(20, -18, 4, 4); }
+        if(key === 'SHOTGUN') { ctx.fillStyle = "#444"; ctx.fillRect(-5, -18, 12, 8); }
+        if(key === 'FLAME') { ctx.fillStyle = "darkred"; ctx.fillRect(-5, -18, 14, 8); ctx.fillStyle="orange"; ctx.beginPath(); ctx.arc(9,-14,3,0,Math.PI*2); ctx.fill(); }
+        if(key === 'MISSILE') { ctx.fillStyle = "#666"; ctx.fillRect(-5, -20, 10, 8); ctx.fillStyle="orange"; ctx.beginPath(); ctx.moveTo(5,-20); ctx.lineTo(12,-16); ctx.lineTo(5,-12); ctx.fill(); }
+        if(key === 'TESLA') { ctx.fillStyle = "yellow"; ctx.beginPath(); ctx.arc(0,-15, 5, 0, Math.PI*2); ctx.fill(); }
+        if(key === 'BOMB' || key === 'NUKE') { ctx.fillStyle = "black"; ctx.font = "16px Arial"; ctx.fillText("☢️", -8, -15); }
+    }
+}
+
+// -- CLASS --
 class Creature {
     constructor(x, y, team, mutations = []) {
         this.id = Math.floor(Math.random()*10000);
         this.x = x; this.y = y;
-        this.vx = 0; this.vy = 0; // VELOCITY for bounce/dash
+        this.vx = 0; this.vy = 0;
         this.team = team;
         this.mutations = [...mutations];
         
         this.hp = 100; this.maxHp = 100;
-        this.size = 12;
-        this.friction = 0.90; // How fast they slow down
-        this.accel = 0.5;
+        this.size = 14; // Bigger for penguin
+        this.friction = 0.96; // SLIPPERY ICE PHYSICS (0.96 is more slippery than 0.90)
+        this.accel = 0.25; 
+        this.waddleOffset = Math.random() * 100; // Animation offset
         
-        // Combat State
         this.cooldowns = { slot0: 0, slot1: 0, melee: 0 };
-        this.state = 'idle'; // idle, chase, lunge, recoil, kite
         
-        // Visuals
-        this.angle = 0;
-        this.shieldAngle = 0;
-        this.sawAngle = 0;
-
-        // Apply mutations stats
         if(this.mutations.length > 0) {
             this.maxHp += 50 * this.mutations.length;
             this.hp = this.maxHp;
         }
     }
 
-    isRanged() {
-        return this.mutations.some(m => MUTATIONS[m].type === 'range');
-    }
+    isRanged() { return this.mutations.some(m => MUTATIONS[m].type === 'range'); }
 
     update() {
-        // 1. Friction (Always slow down)
         this.vx *= this.friction;
         this.vy *= this.friction;
 
-        // 2. AI & Movement Logic
         let target = this.findTarget();
 
         if (target) {
@@ -189,126 +295,101 @@ class Creature {
             let dy = target.y - this.y;
             let dist = Math.hypot(dx, dy);
             let angleToTarget = Math.atan2(dy, dx);
-            
-            // Aiming
             this.angle = angleToTarget;
 
-            // -- BEHAVIOR: RANGED (Kiting) --
             if (this.isRanged()) {
-                let optimalDist = 200;
-                
-                if (dist > optimalDist) {
-                    // Chase
+                let optimal = 200;
+                if (dist > optimal) {
                     this.vx += Math.cos(angleToTarget) * this.accel;
                     this.vy += Math.sin(angleToTarget) * this.accel;
-                } else if (dist < optimalDist - 50) {
-                    // RUN AWAY!
+                } else if (dist < optimal - 50) {
                     this.vx -= Math.cos(angleToTarget) * (this.accel * 0.8);
                     this.vy -= Math.sin(angleToTarget) * (this.accel * 0.8);
                 }
-                // (If in between, stand still and shoot)
-
-            // -- BEHAVIOR: MELEE (Dash & Smash) --
             } else {
-                if (dist < 100 && this.cooldowns.melee <= 0) {
-                    // LUNGE ATTACK
-                    this.vx += Math.cos(angleToTarget) * 4; // Burst of speed
-                    this.vy += Math.sin(angleToTarget) * 4;
-                    this.cooldowns.melee = 40; // Cooldown before next lunge
-                    createParticles(this.x, this.y, "white", 2); // dust cloud
+                // Melee Lunge
+                if (dist < 120 && this.cooldowns.melee <= 0) {
+                    this.vx += Math.cos(angleToTarget) * 5; 
+                    this.vy += Math.sin(angleToTarget) * 5;
+                    this.cooldowns.melee = 50; 
+                    createParticles(this.x, this.y, "white", 3); // Snow kick
                 } else {
-                    // Normal Chase
                     this.vx += Math.cos(angleToTarget) * this.accel;
                     this.vy += Math.sin(angleToTarget) * this.accel;
                 }
             }
 
-            // Ability Triggers
+            // Abilities
             this.mutations.forEach((mut, index) => {
                 let cdKey = 'slot'+index;
                 if(this.cooldowns[cdKey] <= 0) this.useAbility(mut, target, dist, cdKey);
             });
 
-            // -- MELEE COLLISION COMBAT --
-            // Only deal contact damage if velocity is high enough (impact) OR if very close
-            let impactSpeed = Math.hypot(this.vx, this.vy);
+            // Collision
             if(dist < this.size + target.size) {
-                
-                // Damage Calculation
-                let dmg = 2; // Base bump damage
-                if (impactSpeed > 2) dmg = 10; // Hard hit
+                let dmg = 2;
+                let impact = Math.hypot(this.vx, this.vy);
+                if (impact > 2) dmg = 8;
                 if (this.mutations.includes('SPIKES')) dmg += 10;
                 if (this.mutations.includes('SAW')) dmg += 5;
-                if (this.mutations.includes('TESLA')) dmg += 2;
-                if (this.mutations.includes('BLINK')) dmg += 15;
-
+                if (this.mutations.includes('TESLA')) dmg += 3;
+                
                 target.takeDamage(dmg);
-                
-                // KNOCKBACK (Physics Bounce)
-                let pushForce = 3;
-                let pushDir = Math.atan2(this.y - target.y, this.x - target.x); // Direction away
-                
-                // Bounce Self
+
+                // Bounce
+                let pushForce = 4; // High bounce on ice
+                let pushDir = Math.atan2(this.y - target.y, this.x - target.x);
                 this.vx = Math.cos(pushDir) * pushForce;
                 this.vy = Math.sin(pushDir) * pushForce;
-                
-                // Push Target
                 target.vx = Math.cos(pushDir + Math.PI) * pushForce;
                 target.vy = Math.sin(pushDir + Math.PI) * pushForce;
-
-                // Visual Spark
-                createParticles((this.x+target.x)/2, (this.y+target.y)/2, "white", 3);
             }
-
         } else if (this.team === 'blue') {
-            // Idle: Drift to Mouse
-            let dx = mouseX - this.x;
-            let dy = mouseY - this.y;
-            if(Math.hypot(dx, dy) > 100) {
-                let a = Math.atan2(dy, dx);
+            // Idle wander
+            if(Math.hypot(mouseX-this.x, mouseY-this.y) > 100) {
+                let a = Math.atan2(mouseY-this.y, mouseX-this.x);
                 this.vx += Math.cos(a) * (this.accel * 0.5);
                 this.vy += Math.sin(a) * (this.accel * 0.5);
+                this.angle = a;
             }
         }
 
-        // 3. Separation Logic (Prevent Overlap)
+        // Separation
         let pool = this.team === 'blue' ? army : enemies;
         for(let other of pool) {
             if (other !== this) {
                 let dx = this.x - other.x;
                 let dy = this.y - other.y;
                 let dist = Math.hypot(dx, dy);
-                let minDist = this.size + other.size + 2;
-                
-                if (dist < minDist && dist > 0) {
-                    let push = (minDist - dist) / 2; // Push apart half the overlap
+                if (dist < this.size*2 && dist > 0) {
+                    let push = (this.size*2 - dist) / 5;
                     let angle = Math.atan2(dy, dx);
-                    let px = Math.cos(angle) * push * 0.2; // 0.2 is "stiffness"
-                    let py = Math.sin(angle) * push * 0.2;
-                    
-                    this.vx += px; this.vy += py;
-                    other.vx -= px; other.vy -= py;
+                    this.vx += Math.cos(angle) * push * 0.1;
+                    this.vy += Math.sin(angle) * push * 0.1;
                 }
             }
         }
 
-        // Apply Velocity to Position
         this.x += this.vx;
         this.y += this.vy;
 
-        // Boundaries
+        // Bounds bounce
         if(this.x<0 || this.x>canvas.width) this.vx *= -1;
         if(this.y<0 || this.y>canvas.height) this.vy *= -1;
         this.x = Math.max(10, Math.min(canvas.width-10, this.x));
         this.y = Math.max(10, Math.min(canvas.height-10, this.y));
 
-        // Ticks
         if(this.cooldowns.slot0 > 0) this.cooldowns.slot0--;
         if(this.cooldowns.slot1 > 0) this.cooldowns.slot1--;
         if(this.cooldowns.melee > 0) this.cooldowns.melee--;
+    }
+
+    draw() {
+        // Calculate waddle
+        let speed = Math.hypot(this.vx, this.vy);
+        let waddle = speed > 0.1 ? Math.sin((gameTime + this.waddleOffset) * 0.3) * 0.3 : 0;
         
-        this.shieldAngle += 0.1;
-        this.sawAngle += 0.5;
+        drawPenguin(ctx, this.x, this.y, this.size, this.angle, this.team, waddle, this.hp/this.maxHp, this.mutations);
     }
 
     findTarget() {
@@ -322,20 +403,15 @@ class Creature {
     }
 
     useAbility(key, target, dist, cdKey) {
-        // GUNS
         if(key === 'LASER' && dist < 300) { spawnProj(this, target, 'LASER'); this.cooldowns[cdKey] = 40; }
         if(key === 'SHOTGUN' && dist < 200) { for(let i=-0.3; i<=0.3; i+=0.3) spawnProj(this, target, 'SHOTGUN', i); this.cooldowns[cdKey] = 60; }
         if(key === 'SNIPER' && dist < 600) { spawnProj(this, target, 'SNIPER'); this.cooldowns[cdKey] = 120; }
         if(key === 'FLAME' && dist < 120) { spawnProj(this, target, 'FLAME'); this.cooldowns[cdKey] = 5; }
-        if(key === 'WEB' && dist < 250) { spawnProj(this, target, 'WEB'); this.cooldowns[cdKey] = 50; }
-        if(key === 'FREEZE' && dist < 250) { spawnProj(this, target, 'FREEZE'); this.cooldowns[cdKey] = 45; }
-        if(key === 'MISSILE' && dist < 400) { spawnProj(this, target, 'MISSILE'); this.cooldowns[cdKey] = 100; }
+        if(key === 'MISSILE' && dist < 450) { spawnProj(this, target, 'MISSILE'); this.cooldowns[cdKey] = 100; }
         
-        // SPECIALS
         if(key === 'BLINK' && dist > 150) {
             this.x = target.x + (Math.random()*60-30);
             this.y = target.y + (Math.random()*60-30);
-            this.vx = 0; this.vy = 0;
             createParticles(this.x, this.y, "#aa00ff", 10);
             this.cooldowns[cdKey] = 100;
         }
@@ -344,36 +420,16 @@ class Creature {
             target.takeDamage(10);
             this.cooldowns[cdKey] = 40;
         }
-        if(key === 'GRAVITY') {
-            let pool = this.team === 'blue' ? enemies : army;
-            pool.forEach(e => {
-                let d = Math.hypot(e.x - this.x, e.y - this.y);
-                if(d < 250) {
-                    let a = Math.atan2(this.y - e.y, this.x - e.x);
-                    e.vx += Math.cos(a) * 0.5; // SUCK IN with force
-                    e.vy += Math.sin(a) * 0.5;
-                }
-            });
-        }
         if(key === 'REPULSE' && dist < 80) {
              let a = Math.atan2(target.y - this.y, target.x - this.x);
-             target.vx += Math.cos(a) * 10; // MASSIVE PUSH
-             target.vy += Math.sin(a) * 10;
+             target.vx += Math.cos(a) * 12;
+             target.vy += Math.sin(a) * 12;
              this.cooldowns[cdKey] = 30;
-        }
-        if(key === 'NECRO' && this.team === 'blue') {
-             if(Math.random() < 0.005) {
-                 let m = new Creature(this.x, this.y, 'blue');
-                 m.size = 6; m.hp = 20; m.speed = 3;
-                 army.push(m);
-             }
         }
         if(key === 'HEALER') {
             let mates = this.team === 'blue' ? army : enemies;
             mates.forEach(m => {
-                if(m !== this && Math.hypot(m.x-this.x, m.y-this.y) < 100) {
-                    m.hp = Math.min(m.hp + 0.2, m.maxHp);
-                }
+                if(m !== this && Math.hypot(m.x-this.x, m.y-this.y) < 100) m.hp = Math.min(m.hp + 0.3, m.maxHp);
             });
         }
     }
@@ -385,80 +441,24 @@ class Creature {
         }
         this.hp -= amt;
         if(this.hp <= 0) {
-            // Death Logic
+            // Death Effects
             if(this.mutations.includes('BOMB') || this.mutations.includes('NUKE')) {
-                let r = this.mutations.includes('NUKE') ? 200 : 100;
-                let dmg = this.mutations.includes('NUKE') ? 100 : 40;
-                createExplosion(this.x, this.y, r, "orange");
+                createExplosion(this.x, this.y, 150, "orange");
                 let targets = this.team === 'blue' ? enemies : army;
                 targets.forEach(t => {
-                    if(Math.hypot(t.x-this.x, t.y-this.y) < r) {
-                        t.takeDamage(dmg);
-                        // Blast force
+                    if(Math.hypot(t.x-this.x, t.y-this.y) < 150) {
+                        t.takeDamage(50);
                         let a = Math.atan2(t.y-this.y, t.x-this.x);
-                        t.vx += Math.cos(a)*10; t.vy += Math.sin(a)*10;
+                        t.vx += Math.cos(a)*15; t.vy += Math.sin(a)*15;
                     }
                 });
             }
-        }
-    }
-
-    draw() {
-        ctx.save();
-        ctx.translate(this.x, this.y);
-        ctx.rotate(this.angle);
-
-        // ATTACHMENTS (Under)
-        this.mutations.forEach(m => this.drawVisuals(m, true));
-
-        // BODY
-        ctx.fillStyle = this.team === 'blue' ? '#0077aa' : '#aa2222';
-        if(this === selectedUnit) { ctx.shadowBlur=15; ctx.shadowColor="white"; ctx.fillStyle="#00aaff"; }
-        
-        // Stretch effect based on velocity (Squash & Stretch)
-        let speed = Math.hypot(this.vx, this.vy);
-        let stretch = Math.min(speed * 0.1, 0.5);
-        ctx.scale(1 + stretch, 1 - stretch);
-
-        ctx.beginPath();
-        ctx.arc(0, 0, this.size, 0, Math.PI*2);
-        ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.scale(1,1); // Reset scale
-
-        // ATTACHMENTS (Over)
-        this.mutations.forEach(m => this.drawVisuals(m, false));
-
-        // HP Bar (Fixed Rotation)
-        ctx.rotate(-this.angle);
-        ctx.fillStyle = "red"; ctx.fillRect(-10, -20, 20, 4);
-        ctx.fillStyle = "#0f0"; ctx.fillRect(-10, -20, 20*(this.hp/this.maxHp), 4);
-
-        ctx.restore();
-    }
-
-    drawVisuals(key, isUnder) {
-        if(isUnder) {
-             if(key === 'SPIKES') { ctx.fillStyle = "#888"; for(let i=0; i<8; i++) { ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(this.size, -4); ctx.lineTo(this.size+8, 0); ctx.lineTo(this.size, 4); ctx.fill(); } }
-             if(key === 'SAW') { ctx.save(); ctx.rotate(this.sawAngle); ctx.fillStyle = "#ccc"; ctx.beginPath(); for(let i=0; i<12; i++) { ctx.rotate(Math.PI/6); ctx.lineTo(this.size+15, 0); ctx.lineTo(this.size+5, 5); } ctx.fill(); ctx.restore(); }
-             if(key === 'SHIELD') { ctx.strokeStyle = "cyan"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0,0, this.size+10, this.shieldAngle, this.shieldAngle + Math.PI); ctx.stroke(); }
-             if(key === 'REPULSE') { ctx.strokeStyle = "magenta"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,this.size+4, 0, Math.PI*2); ctx.stroke(); }
-        } else {
-            if(key === 'LASER') { ctx.fillStyle = "#cc0000"; ctx.fillRect(0, -3, 20, 6); }
-            if(key === 'SNIPER') { ctx.fillStyle = "#00ff00"; ctx.fillRect(0, -2, 35, 4); ctx.fillStyle="black"; ctx.fillRect(35,-3,4,6); }
-            if(key === 'SHOTGUN') { ctx.fillStyle = "#888"; ctx.fillRect(0, -6, 15, 4); ctx.fillRect(0, 2, 15, 4); ctx.fillRect(0, -2, 18, 4); }
-            if(key === 'MISSILE') { ctx.fillStyle = "orange"; ctx.fillRect(0, -6, 10, 12); }
-            if(key === 'FLAME') { ctx.fillStyle = "darkred"; ctx.fillRect(0, -5, 12, 10); ctx.fillStyle="orange"; ctx.beginPath(); ctx.arc(12,0,4,0,Math.PI*2); ctx.fill(); }
-            if(key === 'WEB') { ctx.fillStyle = "white"; ctx.fillRect(0, -4, 15, 8); }
-            if(key === 'TESLA') { ctx.fillStyle = "yellow"; ctx.beginPath(); ctx.arc(0,0, 6, 0, Math.PI*2); ctx.fill(); }
-            if(key === 'BOMB' || key === 'NUKE') { ctx.fillStyle = "black"; ctx.font = "12px Arial"; ctx.fillText("☢️", -6, 4); }
-            if(key === 'NECRO') { ctx.fillStyle = "white"; ctx.font = "10px Arial"; ctx.fillText("☠️", -6, 4); }
-            if(key === 'ORBITAL') { ctx.save(); ctx.rotate(this.shieldAngle*2); ctx.fillStyle = "gold"; ctx.beginPath(); ctx.arc(25, 0, 5, 0, Math.PI*2); ctx.fill(); ctx.restore(); }
+            createParticles(this.x, this.y, "red", 10);
         }
     }
 }
 
-// -- PROJECTILE SYSTEM --
+// -- PROJECTILES --
 class Projectile {
     constructor(owner, target, type, angleOffset = 0) {
         this.x = owner.x; this.y = owner.y;
@@ -469,11 +469,9 @@ class Projectile {
         
         let stats = {
             LASER: { spd: 8, life: 60, color: 'red', w: 3 },
-            SNIPER: { spd: 15, life: 60, color: 'lime', w: 2 },
+            SNIPER: { spd: 15, life: 60, color: '#0f0', w: 2 },
             SHOTGUN: { spd: 6, life: 25, color: 'white', w: 4 },
             FLAME: { spd: 4, life: 20, color: 'orange', w: 6 },
-            WEB: { spd: 5, life: 80, color: '#ddd', w: 5 },
-            FREEZE: { spd: 7, life: 50, color: 'cyan', w: 3 },
             MISSILE: { spd: 3, life: 150, color: 'orange', w: 6 }
         };
         this.props = stats[type] || stats.LASER;
@@ -489,14 +487,12 @@ class Projectile {
         
         let pool = this.owner.team === 'blue' ? enemies : army;
         for(let t of pool) {
-            if(Math.hypot(t.x-this.x, t.y-this.y) < t.size + 8) {
+            if(Math.hypot(t.x-this.x, t.y-this.y) < t.size + 10) {
                 let dmg = 10;
-                if(this.type==='SNIPER') { dmg = 40; t.vx += this.vx*0.5; t.vy += this.vy*0.5; } // Sniper Knockback
+                if(this.type==='SNIPER') dmg = 40;
                 if(this.type==='SHOTGUN') { dmg = 8; t.vx += this.vx*0.5; t.vy += this.vy*0.5; }
                 if(this.type==='FLAME') dmg = 2;
-                if(this.type==='MISSILE') { dmg=25; createExplosion(this.x,this.y, 40, "orange"); }
-                if(this.type==='WEB') t.vx *= 0.1; 
-                if(this.type==='FREEZE') t.vx *= 0.5; 
+                if(this.type==='MISSILE') { dmg=30; createExplosion(this.x,this.y, 40, "orange"); }
                 t.takeDamage(dmg);
                 this.life = 0; break;
             }
@@ -506,7 +502,7 @@ class Projectile {
 }
 
 // -- SYSTEMS --
-function spawnDNA(x, y, type) { items.push({x, y, type, life: 800}); }
+function spawnDNA(x, y, type) { items.push({x, y, type, life: 1000}); }
 function spawnProj(o, t, type, off=0) { projectiles.push(new Projectile(o, t, type, off)); }
 function drawLightning(x1,y1,x2,y2) { ctx.strokeStyle="yellow"; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo((x1+x2)/2+(Math.random()*20-10), (y1+y2)/2+(Math.random()*20-10)); ctx.lineTo(x2,y2); ctx.stroke(); }
 function createExplosion(x,y,r,c) { ctx.fillStyle=c; ctx.globalAlpha=0.5; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
@@ -518,7 +514,7 @@ function renderInventory() {
     MUTATION_KEYS.forEach(k => {
         if(inventory[k] > 0) {
             let el = document.createElement('div'); el.className = "dna-item" + (selectedDNA===k?" selected":"");
-            el.innerHTML = `<span style="color:${MUTATIONS[k].color}">${MUTATIONS[k].name}</span> <span class="dna-count">x${inventory[k]}</span>`;
+            el.innerHTML = `<span style="color:${MUTATIONS[k].color}">${MUTATIONS[k].name}</span> <span>x${inventory[k]}</span>`;
             el.onclick = () => { selectedDNA = k; renderInventory(); updateInspector(); };
             div.appendChild(el);
         }
@@ -530,9 +526,10 @@ function updateInspector() {
     if(!selectedUnit) return;
     let slots = [document.getElementById('slot1'), document.getElementById('slot2')];
     selectedUnit.mutations.forEach((m, i) => { if(i<2) { slots[i].className="slot filled"; slots[i].style.color=MUTATIONS[m].color; slots[i].innerText=MUTATIONS[m].name; } });
-    if(selectedUnit.mutations.length<1) slots[0].innerText = "Empty"; if(selectedUnit.mutations.length<2) slots[1].innerText = "Empty";
+    if(selectedUnit.mutations.length<1) { slots[0].innerText = "Empty Slot"; slots[0].className="slot"; }
+    if(selectedUnit.mutations.length<2) { slots[1].innerText = "Empty Slot"; slots[1].className="slot"; }
     let btn = document.getElementById('btnInject');
-    if(selectedUnit.mutations.length < 2 && selectedDNA && biomass >= 50) { btn.disabled = false; btn.innerText = `INJECT ${MUTATIONS[selectedDNA].name} (50 Bio)`; }
+    if(selectedUnit.mutations.length < 2 && selectedDNA && biomass >= 50) { btn.disabled = false; btn.innerText = `INJECT (50 Bio)`; }
     else { btn.disabled = true; btn.innerText = selectedUnit.mutations.length>=2?"Unit Full":(selectedDNA?"Need 50 Bio":"Select DNA"); }
 }
 function injectMutation() {
@@ -540,30 +537,31 @@ function injectMutation() {
         biomass -= 50; inventory[selectedDNA]--; selectedUnit.mutations.push(selectedDNA);
         selectedUnit.maxHp+=50; selectedUnit.hp+=50;
         if(inventory[selectedDNA]<=0) selectedDNA=null;
-        renderInventory(); updateInspector(); createParticles(selectedUnit.x, selectedUnit.y, "#00aaff", 20);
+        renderInventory(); updateInspector(); createParticles(selectedUnit.x, selectedUnit.y, "#00ffaa", 20);
     }
 }
 
-// -- LOOP --
-// START WITH 4 UNITS FOR EASIER START
-for(let i=0; i<4; i++) army.push(new Creature(200 + (i*30), 300, 'blue'));
+// -- STARTUP --
+for(let i=0; i<4; i++) army.push(new Creature(200, 300 + (i*40), 'blue'));
 
 function loop() {
-    ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.clearRect(0,0,canvas.width,canvas.height); // Clear transparent for background
     gameTime++;
 
-    // SLOWER ENEMY SPAWN AT START
-    let spawnRate = 0.005 + (gameTime * 0.00001); // Slowly increases
-    if(gameTime < 500) spawnRate = 0.005; // Warm up phase
-    
-    if(enemies.length < 3 + (army.length/1.5) && Math.random() < spawnRate) {
+    // PASSIVE INCOME
+    if(gameTime % 60 === 0) biomass += 5;
+
+    // SPAWN
+    let spawnRate = 0.005; // Very slow spawn
+    if(enemies.length < 2 + (army.length/2) && Math.random() < spawnRate) {
         let type = MUTATION_KEYS[Math.floor(Math.random()*MUTATION_KEYS.length)];
         enemies.push(new Creature(canvas.width, Math.random()*canvas.height, 'red', [type]));
     }
 
+    // UPDATE ENTITIES
     [...army, ...enemies].forEach(c => { c.update(); c.draw(); });
     
-    // Death & Cleanup
+    // CLEANUP
     for(let i=army.length-1; i>=0; i--) if(army[i].hp<=0) army.splice(i,1);
     for(let i=enemies.length-1; i>=0; i--) {
         if(enemies[i].hp<=0) {
@@ -574,16 +572,20 @@ function loop() {
     for(let i=projectiles.length-1; i>=0; i--) { projectiles[i].update(); projectiles[i].draw(); if(projectiles[i].life<=0) projectiles.splice(i,1); }
     for(let i=items.length-1; i>=0; i--) {
         let it = items[i]; it.life--;
-        ctx.fillStyle = MUTATIONS[it.type].color; ctx.beginPath(); ctx.rect(it.x-5,it.y-5,10,10); ctx.fill();
-        ctx.fillStyle="white"; ctx.font="10px Arial"; ctx.fillText("DNA", it.x-10, it.y+10);
+        ctx.fillStyle = MUTATIONS[it.type].color; ctx.beginPath(); 
+        ctx.moveTo(it.x, it.y); ctx.lineTo(it.x-5, it.y-10); ctx.lineTo(it.x+5, it.y-10); ctx.fill(); // Vial shape
+        ctx.fillStyle="#004466"; ctx.font="10px Arial"; ctx.fillText("DNA", it.x-10, it.y+10);
         if(Math.hypot(mouseX-it.x, mouseY-it.y) < 25) { inventory[it.type]++; renderInventory(); biomass += 5; items.splice(i,1); }
         else if(it.life<=0) items.splice(i,1);
     }
-    for(let i=particles.length-1; i>=0; i--) { let p = particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=0.05; ctx.globalAlpha=p.life; ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,2,0,Math.PI*2); ctx.fill(); if(p.life<=0) particles.splice(i,1); }
+    
+    // SNOW PARTICLES
+    if(Math.random()<0.3) particles.push({x: Math.random()*canvas.width, y: 0, vx: (Math.random()-0.5), vy: Math.random()*2+1, c: 'white', life: 200});
+    for(let i=particles.length-1; i>=0; i--) { let p = particles[i]; p.x+=p.vx; p.y+=p.vy; p.life--; ctx.globalAlpha=p.life/100; ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,Math.random()*2,0,Math.PI*2); ctx.fill(); if(p.life<=0) particles.splice(i,1); }
     ctx.globalAlpha=1;
 
     document.getElementById('bioDisplay').innerText = biomass;
-    if(army.length === 0 && biomass < 50) { ctx.fillStyle = "white"; ctx.font = "30px Arial"; ctx.fillText("GAME OVER - RELOAD", canvas.width/2-150, canvas.height/2); }
+    if(army.length === 0 && biomass < 50) { ctx.fillStyle = "#004466"; ctx.font = "30px Arial"; ctx.fillText("EXTINCTION EVENT - RELOAD TO RETRY", canvas.width/2-250, canvas.height/2); }
     else requestAnimationFrame(loop);
 }
 
