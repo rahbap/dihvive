@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Gene Lab: Evolution RPG</title>
+    <title>Gene Lab: Kinetic Combat</title>
     <style>
         body { margin: 0; background: #050505; color: white; font-family: 'Segoe UI', monospace; overflow: hidden; user-select: none; }
-        canvas { display: block; cursor: crosshair; margin-right: 250px; } /* Room for Lab */
+        canvas { display: block; cursor: crosshair; margin-right: 250px; }
         
-        /* THE LAB UI */
+        /* UI STYLING */
         #lab-panel {
             position: absolute; right: 0; top: 0; bottom: 0; width: 260px;
             background: #111; border-left: 2px solid #00aaff;
@@ -18,7 +18,6 @@
         h2 { color: #00aaff; margin: 0 0 10px 0; font-size: 18px; text-transform: uppercase; border-bottom: 1px solid #333; padding-bottom: 5px; }
         .resource { font-size: 20px; color: #00e676; font-weight: bold; margin-bottom: 15px; }
         
-        /* INVENTORY GRID */
         #dna-inventory {
             flex-grow: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 5px;
             margin-bottom: 10px;
@@ -31,9 +30,7 @@
         }
         .dna-item:hover { background: #333; border-color: #666; }
         .dna-item.selected { border-color: #00aaff; background: #002233; }
-        .dna-count { background: #444; padding: 2px 6px; border-radius: 10px; font-size: 11px; }
-
-        /* SELECTED UNIT PANEL */
+        
         #unit-inspector {
             height: 200px; background: #001122; border-radius: 4px; padding: 10px;
             border: 1px solid #004466; display: none; flex-direction: column;
@@ -49,32 +46,30 @@
             font-weight: bold; cursor: pointer; margin-top: 10px; border-radius: 4px;
         }
         button:disabled { background: #333; color: #555; cursor: not-allowed; }
-        button:hover:not(:disabled) { background: #00d5ff; }
-
+        
         #msg-overlay {
             position: absolute; top: 10px; left: 10px; pointer-events: none;
-            text-shadow: 1px 1px 2px black;
+            text-shadow: 1px 1px 2px black; background: rgba(0,0,0,0.5); padding: 10px; border-radius: 8px;
         }
     </style>
 </head>
 <body>
 
     <div id="msg-overlay">
-        <div>1. Kill Elites (Glowing) to drop DNA.</div>
-        <div>2. Hover mouse over DNA to collect it.</div>
-        <div>3. <b>CLICK</b> a Blue Unit to open Lab options.</div>
-        <div>4. Select DNA and Click <b>INJECT</b> to mutate.</div>
+        <h3 style="margin:0; color:#00aaff">HOW TO PLAY</h3>
+        <div>1. <b>Collect DNA</b> dropped by enemies.</div>
+        <div>2. <b>Click</b> your Blue Units to upgrade them.</div>
+        <div>3. <b>Inject DNA</b> in the right panel.</div>
+        <div style="color:yellow; margin-top:5px;">New: Units now Dash & Bounce!</div>
     </div>
 
     <div id="lab-panel">
-        <h2>Biomass: <span id="bioDisplay" class="resource">0</span></h2>
-        
+        <h2>Biomass: <span id="bioDisplay" class="resource">300</span></h2>
         <h2>DNA Storage</h2>
-        <div id="dna-inventory">
-            </div>
+        <div id="dna-inventory"></div>
 
         <div id="unit-inspector">
-            <h3 style="margin:0; font-size:14px; color:white;">Subject #<span id="subjectId">0</span></h3>
+            <h3 style="margin:0; font-size:14px; color:white;">Unit Config</h3>
             <div class="slot" id="slot1">Empty Slot</div>
             <div class="slot" id="slot2">Empty Slot</div>
             <button id="btnInject" onclick="injectMutation()">INJECT (Cost: 50)</button>
@@ -86,162 +81,234 @@
 <script>
 const canvas = document.getElementById('simCanvas');
 const ctx = canvas.getContext('2d');
-// Adjust canvas for sidebar
 canvas.width = window.innerWidth - 260; 
 canvas.height = window.innerHeight;
 
 // -- CONFIG --
 const MUTATIONS = {
-    // CLASSIC
-    LASER: { name: 'Laser', color: '#ff0055', type: 'gun' },
-    SHOTGUN: { name: 'Shotgun', color: '#ffffff', type: 'gun' },
-    SNIPER: { name: 'Sniper', color: '#00ff00', type: 'gun' }, // Long range, slow
-    MISSILE: { name: 'Missile', color: '#ffaa00', type: 'launcher' }, // Homing
-    BOMB: { name: 'Bomb', color: '#ff5500', type: 'body' }, // Explodes on death
-    SPIKES: { name: 'Spikes', color: '#888888', type: 'melee' }, // Contact dmg
-    SAW: { name: 'Sawblade', color: '#cccccc', type: 'melee' }, // Rotating melee
-    SHIELD: { name: 'Shield', color: '#00ffff', type: 'aura' },
-    HEALER: { name: 'Healer', color: '#00ffaa', type: 'aura' }, // Heals nearby
-    FREEZE: { name: 'Ice Ray', color: '#aaddff', type: 'gun' },
+    // RANGED
+    LASER: { name: 'Laser', color: '#ff0055', type: 'range' },
+    SHOTGUN: { name: 'Shotgun', color: '#ffffff', type: 'range' },
+    SNIPER: { name: 'Sniper', color: '#00ff00', type: 'range' },
+    MISSILE: { name: 'Missile', color: '#ffaa00', type: 'range' },
+    WEB: { name: 'Web Gun', color: '#eeeeee', type: 'range' },
+    FREEZE: { name: 'Ice Ray', color: '#aaddff', type: 'range' },
+    FLAME: { name: 'Flamethrower', color: '#ff4400', type: 'range' },
 
-    // NEW 10
-    FLAME: { name: 'Flamethrower', color: '#ff4400', type: 'gun' }, // Short range cone
-    POISON: { name: 'Gas Vent', color: '#00cc00', type: 'body' }, // Trail
-    TESLA: { name: 'Tesla Coil', color: '#ffff00', type: 'body' }, // Arcs lightning
-    WEB: { name: 'Web Gun', color: '#eeeeee', type: 'gun' }, // Slows massive amount
-    GRAVITY: { name: 'Black Hole', color: '#220044', type: 'aura' }, // Pulls enemies
-    REPULSE: { name: 'Repulsor', color: '#ff00ff', type: 'body' }, // Pushes enemies
-    BLINK: { name: 'Blink Drive', color: '#aa00ff', type: 'tech' }, // Teleports
-    NECRO: { name: 'Necro', color: '#440000', type: 'tech' }, // Spawns minions
-    ORBITAL: { name: 'Orbital', color: '#gold', type: 'tech' }, // Gun orbits unit
-    NUKE: { name: 'Nuke', color: '#33ff00', type: 'body' } // Massive death dmg
+    // MELEE / TANK / UTILITY
+    SPIKES: { name: 'Spikes', color: '#888888', type: 'melee' },
+    SAW: { name: 'Sawblade', color: '#cccccc', type: 'melee' },
+    SHIELD: { name: 'Shield', color: '#00ffff', type: 'tank' },
+    HEALER: { name: 'Healer', color: '#00ffaa', type: 'support' },
+    TESLA: { name: 'Tesla', color: '#ffff00', type: 'melee' },
+    REPULSE: { name: 'Repulsor', color: '#ff00ff', type: 'tank' },
+    NUKE: { name: 'Nuke', color: '#33ff00', type: 'tank' },
+    GRAVITY: { name: 'Black Hole', color: '#220044', type: 'support' },
+    NECRO: { name: 'Necro', color: '#440000', type: 'support' },
+    BLINK: { name: 'Blink', color: '#aa00ff', type: 'melee' },
+    BOMB: { name: 'Bomb', color: '#ff5500', type: 'tank' },
+    ORBITAL: { name: 'Orbital', color: 'gold', type: 'melee' }
 };
 
 const MUTATION_KEYS = Object.keys(MUTATIONS);
 
 // -- GAME STATE --
-let biomass = 100;
+let biomass = 300; // Easy Start
+let gameTime = 0;
 let army = [];
 let enemies = [];
-let items = []; // Dropped DNA vials
+let items = []; 
 let projectiles = [];
 let particles = [];
-let inventory = {}; // { 'LASER': 2, 'BOMB': 1 }
+let inventory = {}; 
 let selectedUnit = null;
 let selectedDNA = null;
 
-// Initialize Inventory
 MUTATION_KEYS.forEach(k => inventory[k] = 0);
 
 // -- INPUTS --
 let mouseX = 0, mouseY = 0;
 canvas.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; });
-
 canvas.addEventListener('mousedown', e => {
-    // Check if clicked a unit
     let clicked = false;
     for(let u of army) {
-        if(Math.hypot(u.x - mouseX, u.y - mouseY) < u.size + 5) {
+        if(Math.hypot(u.x - mouseX, u.y - mouseY) < u.size + 10) {
             selectUnit(u);
             clicked = true;
             break;
         }
     }
-    if(!clicked) {
-        deselectUnit();
-        // Spawn basic unit test
-        if (e.shiftKey) army.push(new Creature(mouseX, mouseY, 'blue'));
-    }
+    if(!clicked) deselectUnit();
 });
 
-// -- CLASSES --
+// -- PHYSICS & CLASSES --
 
 class Creature {
     constructor(x, y, team, mutations = []) {
         this.id = Math.floor(Math.random()*10000);
         this.x = x; this.y = y;
+        this.vx = 0; this.vy = 0; // VELOCITY for bounce/dash
         this.team = team;
-        this.mutations = [...mutations]; // Array of strings e.g. ['LASER', 'SHIELD']
+        this.mutations = [...mutations];
         
         this.hp = 100; this.maxHp = 100;
         this.size = 12;
-        this.angle = Math.random() * Math.PI * 2;
-        this.speed = team === 'blue' ? 2 : 1.5;
+        this.friction = 0.90; // How fast they slow down
+        this.accel = 0.5;
         
-        // Cooldowns per slot
-        this.cooldowns = { slot0: 0, slot1: 0 };
+        // Combat State
+        this.cooldowns = { slot0: 0, slot1: 0, melee: 0 };
+        this.state = 'idle'; // idle, chase, lunge, recoil, kite
+        
+        // Visuals
+        this.angle = 0;
         this.shieldAngle = 0;
         this.sawAngle = 0;
-        
+
+        // Apply mutations stats
         if(this.mutations.length > 0) {
             this.maxHp += 50 * this.mutations.length;
             this.hp = this.maxHp;
         }
     }
 
+    isRanged() {
+        return this.mutations.some(m => MUTATIONS[m].type === 'range');
+    }
+
     update() {
-        // 1. Movement & AI
+        // 1. Friction (Always slow down)
+        this.vx *= this.friction;
+        this.vy *= this.friction;
+
+        // 2. AI & Movement Logic
         let target = this.findTarget();
-        
-        if(target) {
-            // Distance check
-            let dist = Math.hypot(target.x - this.x, target.y - this.y);
-            let desiredDist = 0;
+
+        if (target) {
+            let dx = target.x - this.x;
+            let dy = target.y - this.y;
+            let dist = Math.hypot(dx, dy);
+            let angleToTarget = Math.atan2(dy, dx);
             
-            // If I have a gun, stay back slightly
-            if(this.hasType('gun')) desiredDist = 150;
-            
-            if(dist > desiredDist) {
-                let angle = Math.atan2(target.y - this.y, target.x - this.x);
-                this.angle = angle;
-                this.x += Math.cos(angle) * this.speed;
-                this.y += Math.sin(angle) * this.speed;
-            } else if (dist < desiredDist - 20) {
-                // Back up
-                let angle = Math.atan2(target.y - this.y, target.x - this.x);
-                this.x -= Math.cos(angle) * this.speed;
-                this.y -= Math.sin(angle) * this.speed;
+            // Aiming
+            this.angle = angleToTarget;
+
+            // -- BEHAVIOR: RANGED (Kiting) --
+            if (this.isRanged()) {
+                let optimalDist = 200;
+                
+                if (dist > optimalDist) {
+                    // Chase
+                    this.vx += Math.cos(angleToTarget) * this.accel;
+                    this.vy += Math.sin(angleToTarget) * this.accel;
+                } else if (dist < optimalDist - 50) {
+                    // RUN AWAY!
+                    this.vx -= Math.cos(angleToTarget) * (this.accel * 0.8);
+                    this.vy -= Math.sin(angleToTarget) * (this.accel * 0.8);
+                }
+                // (If in between, stand still and shoot)
+
+            // -- BEHAVIOR: MELEE (Dash & Smash) --
             } else {
-                 this.angle = Math.atan2(target.y - this.y, target.x - this.x);
+                if (dist < 100 && this.cooldowns.melee <= 0) {
+                    // LUNGE ATTACK
+                    this.vx += Math.cos(angleToTarget) * 4; // Burst of speed
+                    this.vy += Math.sin(angleToTarget) * 4;
+                    this.cooldowns.melee = 40; // Cooldown before next lunge
+                    createParticles(this.x, this.y, "white", 2); // dust cloud
+                } else {
+                    // Normal Chase
+                    this.vx += Math.cos(angleToTarget) * this.accel;
+                    this.vy += Math.sin(angleToTarget) * this.accel;
+                }
             }
 
-            // 2. ACTIVATE ABILITIES
+            // Ability Triggers
             this.mutations.forEach((mut, index) => {
                 let cdKey = 'slot'+index;
-                if(this.cooldowns[cdKey] <= 0) {
-                    this.useAbility(mut, target, dist, cdKey);
-                }
+                if(this.cooldowns[cdKey] <= 0) this.useAbility(mut, target, dist, cdKey);
             });
 
-            // Base Melee Attack
-            if(dist < this.size + target.size + 5) {
-                target.takeDamage(1);
+            // -- MELEE COLLISION COMBAT --
+            // Only deal contact damage if velocity is high enough (impact) OR if very close
+            let impactSpeed = Math.hypot(this.vx, this.vy);
+            if(dist < this.size + target.size) {
+                
+                // Damage Calculation
+                let dmg = 2; // Base bump damage
+                if (impactSpeed > 2) dmg = 10; // Hard hit
+                if (this.mutations.includes('SPIKES')) dmg += 10;
+                if (this.mutations.includes('SAW')) dmg += 5;
+                if (this.mutations.includes('TESLA')) dmg += 2;
+                if (this.mutations.includes('BLINK')) dmg += 15;
+
+                target.takeDamage(dmg);
+                
+                // KNOCKBACK (Physics Bounce)
+                let pushForce = 3;
+                let pushDir = Math.atan2(this.y - target.y, this.x - target.x); // Direction away
+                
+                // Bounce Self
+                this.vx = Math.cos(pushDir) * pushForce;
+                this.vy = Math.sin(pushDir) * pushForce;
+                
+                // Push Target
+                target.vx = Math.cos(pushDir + Math.PI) * pushForce;
+                target.vy = Math.sin(pushDir + Math.PI) * pushForce;
+
+                // Visual Spark
+                createParticles((this.x+target.x)/2, (this.y+target.y)/2, "white", 3);
             }
 
         } else if (this.team === 'blue') {
-            // Idle
-            if(Math.hypot(mouseX-this.x, mouseY-this.y) > 100) {
-                let a = Math.atan2(mouseY-this.y, mouseX-this.x);
-                this.x += Math.cos(a)*this.speed;
-                this.y += Math.sin(a)*this.speed;
+            // Idle: Drift to Mouse
+            let dx = mouseX - this.x;
+            let dy = mouseY - this.y;
+            if(Math.hypot(dx, dy) > 100) {
+                let a = Math.atan2(dy, dx);
+                this.vx += Math.cos(a) * (this.accel * 0.5);
+                this.vy += Math.sin(a) * (this.accel * 0.5);
             }
         }
+
+        // 3. Separation Logic (Prevent Overlap)
+        let pool = this.team === 'blue' ? army : enemies;
+        for(let other of pool) {
+            if (other !== this) {
+                let dx = this.x - other.x;
+                let dy = this.y - other.y;
+                let dist = Math.hypot(dx, dy);
+                let minDist = this.size + other.size + 2;
+                
+                if (dist < minDist && dist > 0) {
+                    let push = (minDist - dist) / 2; // Push apart half the overlap
+                    let angle = Math.atan2(dy, dx);
+                    let px = Math.cos(angle) * push * 0.2; // 0.2 is "stiffness"
+                    let py = Math.sin(angle) * push * 0.2;
+                    
+                    this.vx += px; this.vy += py;
+                    other.vx -= px; other.vy -= py;
+                }
+            }
+        }
+
+        // Apply Velocity to Position
+        this.x += this.vx;
+        this.y += this.vy;
+
+        // Boundaries
+        if(this.x<0 || this.x>canvas.width) this.vx *= -1;
+        if(this.y<0 || this.y>canvas.height) this.vy *= -1;
+        this.x = Math.max(10, Math.min(canvas.width-10, this.x));
+        this.y = Math.max(10, Math.min(canvas.height-10, this.y));
 
         // Ticks
         if(this.cooldowns.slot0 > 0) this.cooldowns.slot0--;
         if(this.cooldowns.slot1 > 0) this.cooldowns.slot1--;
+        if(this.cooldowns.melee > 0) this.cooldowns.melee--;
         
         this.shieldAngle += 0.1;
         this.sawAngle += 0.5;
-
-        // Visual Effects
-        if(this.mutations.includes('POISON') && Math.random()<0.1) {
-            createParticles(this.x, this.y, "#00ff00", 1);
-        }
-
-        // Bounds
-        this.x = Math.max(10, Math.min(canvas.width-10, this.x));
-        this.y = Math.max(10, Math.min(canvas.height-10, this.y));
     }
 
     findTarget() {
@@ -254,47 +321,21 @@ class Creature {
         return best;
     }
 
-    hasType(type) {
-        return this.mutations.some(m => MUTATIONS[m].type === type);
-    }
-
     useAbility(key, target, dist, cdKey) {
-        let fired = false;
-
-        // -- GUNS --
-        if(key === 'LASER' && dist < 300) {
-            spawnProj(this, target, 'LASER');
-            this.cooldowns[cdKey] = 40; fired = true;
-        }
-        if(key === 'SHOTGUN' && dist < 200) {
-            for(let i=-0.3; i<=0.3; i+=0.3) spawnProj(this, target, 'SHOTGUN', i);
-            this.cooldowns[cdKey] = 60; fired = true;
-        }
-        if(key === 'SNIPER' && dist < 500) {
-            spawnProj(this, target, 'SNIPER');
-            this.cooldowns[cdKey] = 120; fired = true;
-        }
-        if(key === 'FLAME' && dist < 100) {
-            spawnProj(this, target, 'FLAME');
-            this.cooldowns[cdKey] = 5; fired = true; // Rapid fire
-        }
-        if(key === 'WEB' && dist < 250) {
-            spawnProj(this, target, 'WEB');
-            this.cooldowns[cdKey] = 50; fired = true;
-        }
-        if(key === 'FREEZE' && dist < 250) {
-            spawnProj(this, target, 'FREEZE');
-            this.cooldowns[cdKey] = 45; fired = true;
-        }
-        if(key === 'MISSILE' && dist < 400) {
-            spawnProj(this, target, 'MISSILE');
-            this.cooldowns[cdKey] = 100; fired = true;
-        }
+        // GUNS
+        if(key === 'LASER' && dist < 300) { spawnProj(this, target, 'LASER'); this.cooldowns[cdKey] = 40; }
+        if(key === 'SHOTGUN' && dist < 200) { for(let i=-0.3; i<=0.3; i+=0.3) spawnProj(this, target, 'SHOTGUN', i); this.cooldowns[cdKey] = 60; }
+        if(key === 'SNIPER' && dist < 600) { spawnProj(this, target, 'SNIPER'); this.cooldowns[cdKey] = 120; }
+        if(key === 'FLAME' && dist < 120) { spawnProj(this, target, 'FLAME'); this.cooldowns[cdKey] = 5; }
+        if(key === 'WEB' && dist < 250) { spawnProj(this, target, 'WEB'); this.cooldowns[cdKey] = 50; }
+        if(key === 'FREEZE' && dist < 250) { spawnProj(this, target, 'FREEZE'); this.cooldowns[cdKey] = 45; }
+        if(key === 'MISSILE' && dist < 400) { spawnProj(this, target, 'MISSILE'); this.cooldowns[cdKey] = 100; }
         
-        // -- TECH/BODY --
+        // SPECIALS
         if(key === 'BLINK' && dist > 150) {
             this.x = target.x + (Math.random()*60-30);
             this.y = target.y + (Math.random()*60-30);
+            this.vx = 0; this.vy = 0;
             createParticles(this.x, this.y, "#aa00ff", 10);
             this.cooldowns[cdKey] = 100;
         }
@@ -307,21 +348,20 @@ class Creature {
             let pool = this.team === 'blue' ? enemies : army;
             pool.forEach(e => {
                 let d = Math.hypot(e.x - this.x, e.y - this.y);
-                if(d < 200) {
+                if(d < 250) {
                     let a = Math.atan2(this.y - e.y, this.x - e.x);
-                    e.x += Math.cos(a) * 2;
-                    e.y += Math.sin(a) * 2;
+                    e.vx += Math.cos(a) * 0.5; // SUCK IN with force
+                    e.vy += Math.sin(a) * 0.5;
                 }
             });
         }
-        if(key === 'REPULSE' && dist < 60) {
+        if(key === 'REPULSE' && dist < 80) {
              let a = Math.atan2(target.y - this.y, target.x - this.x);
-             target.x += Math.cos(a) * 20;
-             target.y += Math.sin(a) * 20;
+             target.vx += Math.cos(a) * 10; // MASSIVE PUSH
+             target.vy += Math.sin(a) * 10;
              this.cooldowns[cdKey] = 30;
         }
         if(key === 'NECRO' && this.team === 'blue') {
-             // Passive spawn minion
              if(Math.random() < 0.005) {
                  let m = new Creature(this.x, this.y, 'blue');
                  m.size = 6; m.hp = 20; m.speed = 3;
@@ -332,33 +372,34 @@ class Creature {
             let mates = this.team === 'blue' ? army : enemies;
             mates.forEach(m => {
                 if(m !== this && Math.hypot(m.x-this.x, m.y-this.y) < 100) {
-                    m.hp = Math.min(m.hp + 0.1, m.maxHp);
+                    m.hp = Math.min(m.hp + 0.2, m.maxHp);
                 }
             });
         }
     }
 
     takeDamage(amt) {
-        // Shield check
-        if(this.mutations.includes('SHIELD') && Math.random() < 0.25) {
+        if(this.mutations.includes('SHIELD') && Math.random() < 0.3) {
             createParticles(this.x, this.y, "cyan", 2);
             return;
         }
-        
         this.hp -= amt;
         if(this.hp <= 0) {
-            // Death Effects
+            // Death Logic
             if(this.mutations.includes('BOMB') || this.mutations.includes('NUKE')) {
-                let radius = this.mutations.includes('NUKE') ? 200 : 100;
+                let r = this.mutations.includes('NUKE') ? 200 : 100;
                 let dmg = this.mutations.includes('NUKE') ? 100 : 40;
-                createExplosion(this.x, this.y, radius, "orange");
+                createExplosion(this.x, this.y, r, "orange");
                 let targets = this.team === 'blue' ? enemies : army;
                 targets.forEach(t => {
-                    if(Math.hypot(t.x-this.x, t.y-this.y) < radius) t.takeDamage(dmg);
+                    if(Math.hypot(t.x-this.x, t.y-this.y) < r) {
+                        t.takeDamage(dmg);
+                        // Blast force
+                        let a = Math.atan2(t.y-this.y, t.x-this.x);
+                        t.vx += Math.cos(a)*10; t.vy += Math.sin(a)*10;
+                    }
                 });
             }
-
-            // Remove logic handled in loop
         }
     }
 
@@ -367,23 +408,28 @@ class Creature {
         ctx.translate(this.x, this.y);
         ctx.rotate(this.angle);
 
-        // 1. Draw Attachments (UNDER body)
-        this.mutations.forEach(m => this.drawAttachment(m, true));
+        // ATTACHMENTS (Under)
+        this.mutations.forEach(m => this.drawVisuals(m, true));
 
-        // 2. Body
+        // BODY
         ctx.fillStyle = this.team === 'blue' ? '#0077aa' : '#aa2222';
-        // Select Highlight
-        if(this === selectedUnit) { ctx.shadowBlur = 20; ctx.shadowColor = "white"; ctx.fillStyle = "#00aaff"; }
+        if(this === selectedUnit) { ctx.shadowBlur=15; ctx.shadowColor="white"; ctx.fillStyle="#00aaff"; }
         
+        // Stretch effect based on velocity (Squash & Stretch)
+        let speed = Math.hypot(this.vx, this.vy);
+        let stretch = Math.min(speed * 0.1, 0.5);
+        ctx.scale(1 + stretch, 1 - stretch);
+
         ctx.beginPath();
         ctx.arc(0, 0, this.size, 0, Math.PI*2);
         ctx.fill();
         ctx.shadowBlur = 0;
+        ctx.scale(1,1); // Reset scale
 
-        // 3. Attachments (OVER body)
-        this.mutations.forEach(m => this.drawAttachment(m, false));
+        // ATTACHMENTS (Over)
+        this.mutations.forEach(m => this.drawVisuals(m, false));
 
-        // HP Bar
+        // HP Bar (Fixed Rotation)
         ctx.rotate(-this.angle);
         ctx.fillStyle = "red"; ctx.fillRect(-10, -20, 20, 4);
         ctx.fillStyle = "#0f0"; ctx.fillRect(-10, -20, 20*(this.hp/this.maxHp), 4);
@@ -391,102 +437,34 @@ class Creature {
         ctx.restore();
     }
 
-    drawAttachment(key, isUnder) {
-        // VISUALS
+    drawVisuals(key, isUnder) {
         if(isUnder) {
-             // Spikes
-             if(key === 'SPIKES') {
-                 ctx.fillStyle = "#888";
-                 for(let i=0; i<8; i++) {
-                     ctx.rotate(Math.PI/4);
-                     ctx.beginPath(); ctx.moveTo(this.size, -4); ctx.lineTo(this.size+8, 0); ctx.lineTo(this.size, 4); ctx.fill();
-                 }
-             }
-             // Sawblade
-             if(key === 'SAW') {
-                 ctx.save();
-                 ctx.rotate(this.sawAngle);
-                 ctx.fillStyle = "#ccc";
-                 ctx.beginPath();
-                 for(let i=0; i<12; i++) {
-                     ctx.rotate(Math.PI/6);
-                     ctx.lineTo(this.size+15, 0); ctx.lineTo(this.size+5, 5);
-                 }
-                 ctx.fill();
-                 ctx.restore();
-             }
-             // Shield
-             if(key === 'SHIELD') {
-                 ctx.strokeStyle = "cyan"; ctx.lineWidth = 2;
-                 ctx.beginPath(); ctx.arc(0,0, this.size+10, this.shieldAngle, this.shieldAngle + Math.PI); ctx.stroke();
-             }
-             // Gravity / Healer Aura
-             if(key === 'GRAVITY') {
-                 ctx.fillStyle = "rgba(50,0,100,0.2)"; ctx.beginPath(); ctx.arc(0,0, 60, 0, Math.PI*2); ctx.fill();
-             }
-             if(key === 'HEALER') {
-                 ctx.fillStyle = "rgba(0,255,100,0.1)"; ctx.beginPath(); ctx.arc(0,0, 80, 0, Math.PI*2); ctx.fill();
-                 // Cross
-                 ctx.fillStyle = "#0f0"; ctx.fillRect(-4, -12, 8, 24); ctx.fillRect(-12, -4, 24, 8);
-             }
-             if(key === 'REPULSE') {
-                 ctx.strokeStyle = "magenta"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,this.size+4, 0, Math.PI*2); ctx.stroke();
-             }
+             if(key === 'SPIKES') { ctx.fillStyle = "#888"; for(let i=0; i<8; i++) { ctx.rotate(Math.PI/4); ctx.beginPath(); ctx.moveTo(this.size, -4); ctx.lineTo(this.size+8, 0); ctx.lineTo(this.size, 4); ctx.fill(); } }
+             if(key === 'SAW') { ctx.save(); ctx.rotate(this.sawAngle); ctx.fillStyle = "#ccc"; ctx.beginPath(); for(let i=0; i<12; i++) { ctx.rotate(Math.PI/6); ctx.lineTo(this.size+15, 0); ctx.lineTo(this.size+5, 5); } ctx.fill(); ctx.restore(); }
+             if(key === 'SHIELD') { ctx.strokeStyle = "cyan"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0,0, this.size+10, this.shieldAngle, this.shieldAngle + Math.PI); ctx.stroke(); }
+             if(key === 'REPULSE') { ctx.strokeStyle = "magenta"; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(0,0,this.size+4, 0, Math.PI*2); ctx.stroke(); }
         } else {
-            // Guns (On top)
-            if(key === 'LASER') {
-                ctx.fillStyle = "#cc0000"; ctx.fillRect(0, -3, 20, 6); // Barrel
-            }
-            if(key === 'SNIPER') {
-                ctx.fillStyle = "#00ff00"; ctx.fillRect(0, -2, 35, 4); // Long Barrel
-                ctx.fillStyle = "black"; ctx.fillRect(35, -3, 4, 6); // Muzzle
-            }
-            if(key === 'SHOTGUN') {
-                ctx.fillStyle = "#888"; 
-                ctx.fillRect(0, -6, 15, 4);
-                ctx.fillRect(0, 2, 15, 4);
-                ctx.fillRect(0, -2, 18, 4);
-            }
-            if(key === 'MISSILE') {
-                ctx.fillStyle = "orange"; ctx.fillRect(0, -6, 10, 12); // Pod
-            }
-            if(key === 'FLAME') {
-                ctx.fillStyle = "darkred"; ctx.fillRect(0, -5, 12, 10);
-                ctx.fillStyle = "orange"; ctx.beginPath(); ctx.arc(12, 0, 4, 0, Math.PI*2); ctx.fill();
-            }
-            if(key === 'WEB') {
-                ctx.fillStyle = "white"; ctx.fillRect(0, -4, 15, 8);
-            }
-            if(key === 'TESLA') {
-                 ctx.fillStyle = "yellow"; ctx.beginPath(); ctx.arc(0,0, 6, 0, Math.PI*2); ctx.fill();
-            }
-            if(key === 'BOMB' || key === 'NUKE') {
-                ctx.fillStyle = "black"; ctx.font = "12px Arial"; ctx.fillText("☢️", -6, 4);
-            }
-            if(key === 'NECRO') {
-                ctx.fillStyle = "white"; ctx.font = "10px Arial"; ctx.fillText("☠️", -6, 4);
-            }
-            if(key === 'ORBITAL') {
-                ctx.save();
-                ctx.rotate(this.shieldAngle*2);
-                ctx.fillStyle = "gold"; ctx.beginPath(); ctx.arc(25, 0, 5, 0, Math.PI*2); ctx.fill();
-                ctx.restore();
-            }
+            if(key === 'LASER') { ctx.fillStyle = "#cc0000"; ctx.fillRect(0, -3, 20, 6); }
+            if(key === 'SNIPER') { ctx.fillStyle = "#00ff00"; ctx.fillRect(0, -2, 35, 4); ctx.fillStyle="black"; ctx.fillRect(35,-3,4,6); }
+            if(key === 'SHOTGUN') { ctx.fillStyle = "#888"; ctx.fillRect(0, -6, 15, 4); ctx.fillRect(0, 2, 15, 4); ctx.fillRect(0, -2, 18, 4); }
+            if(key === 'MISSILE') { ctx.fillStyle = "orange"; ctx.fillRect(0, -6, 10, 12); }
+            if(key === 'FLAME') { ctx.fillStyle = "darkred"; ctx.fillRect(0, -5, 12, 10); ctx.fillStyle="orange"; ctx.beginPath(); ctx.arc(12,0,4,0,Math.PI*2); ctx.fill(); }
+            if(key === 'WEB') { ctx.fillStyle = "white"; ctx.fillRect(0, -4, 15, 8); }
+            if(key === 'TESLA') { ctx.fillStyle = "yellow"; ctx.beginPath(); ctx.arc(0,0, 6, 0, Math.PI*2); ctx.fill(); }
+            if(key === 'BOMB' || key === 'NUKE') { ctx.fillStyle = "black"; ctx.font = "12px Arial"; ctx.fillText("☢️", -6, 4); }
+            if(key === 'NECRO') { ctx.fillStyle = "white"; ctx.font = "10px Arial"; ctx.fillText("☠️", -6, 4); }
+            if(key === 'ORBITAL') { ctx.save(); ctx.rotate(this.shieldAngle*2); ctx.fillStyle = "gold"; ctx.beginPath(); ctx.arc(25, 0, 5, 0, Math.PI*2); ctx.fill(); ctx.restore(); }
         }
     }
 }
 
+// -- PROJECTILE SYSTEM --
 class Projectile {
     constructor(owner, target, type, angleOffset = 0) {
         this.x = owner.x; this.y = owner.y;
-        this.type = type;
-        this.owner = owner;
-        
+        this.type = type; this.owner = owner;
         let a = Math.atan2(target.y - owner.y, target.x - owner.x) + angleOffset;
-        
-        // Homing logic for missile
-        this.vx = Math.cos(a); 
-        this.vy = Math.sin(a);
+        this.vx = Math.cos(a); this.vy = Math.sin(a);
         this.target = target;
         
         let stats = {
@@ -498,232 +476,119 @@ class Projectile {
             FREEZE: { spd: 7, life: 50, color: 'cyan', w: 3 },
             MISSILE: { spd: 3, life: 150, color: 'orange', w: 6 }
         };
-        
         this.props = stats[type] || stats.LASER;
-        this.vx *= this.props.spd;
-        this.vy *= this.props.spd;
+        this.vx *= this.props.spd; this.vy *= this.props.spd;
         this.life = this.props.life;
     }
-    
     update() {
-        if(this.type === 'MISSILE' && this.target && this.target.hp > 0) {
-            let a = Math.atan2(this.target.y - this.y, this.target.x - this.x);
-            this.vx = Math.cos(a) * this.props.spd;
-            this.vy = Math.sin(a) * this.props.spd;
+        if(this.type === 'MISSILE' && this.target && this.target.hp>0) {
+            let a = Math.atan2(this.target.y-this.y, this.target.x-this.x);
+            this.vx = Math.cos(a)*this.props.spd; this.vy = Math.sin(a)*this.props.spd;
         }
+        this.x += this.vx; this.y += this.vy; this.life--;
         
-        this.x += this.vx; this.y += this.vy;
-        this.life--;
-        
-        // Collision
         let pool = this.owner.team === 'blue' ? enemies : army;
         for(let t of pool) {
-            if(Math.hypot(t.x-this.x, t.y-this.y) < t.size + 5) {
+            if(Math.hypot(t.x-this.x, t.y-this.y) < t.size + 8) {
                 let dmg = 10;
-                if(this.type === 'SNIPER') dmg = 40;
-                if(this.type === 'FLAME') dmg = 2;
-                if(this.type === 'MISSILE') dmg = 25;
-                if(this.type === 'WEB') t.speed *= 0.1;
-                if(this.type === 'FREEZE') t.speed *= 0.5;
-
+                if(this.type==='SNIPER') { dmg = 40; t.vx += this.vx*0.5; t.vy += this.vy*0.5; } // Sniper Knockback
+                if(this.type==='SHOTGUN') { dmg = 8; t.vx += this.vx*0.5; t.vy += this.vy*0.5; }
+                if(this.type==='FLAME') dmg = 2;
+                if(this.type==='MISSILE') { dmg=25; createExplosion(this.x,this.y, 40, "orange"); }
+                if(this.type==='WEB') t.vx *= 0.1; 
+                if(this.type==='FREEZE') t.vx *= 0.5; 
                 t.takeDamage(dmg);
-                this.life = 0;
-                break;
+                this.life = 0; break;
             }
         }
     }
-    
-    draw() {
-        ctx.fillStyle = this.props.color;
-        ctx.beginPath(); ctx.arc(this.x, this.y, this.props.w, 0, Math.PI*2); ctx.fill();
-    }
+    draw() { ctx.fillStyle = this.props.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.props.w, 0, Math.PI*2); ctx.fill(); }
 }
 
 // -- SYSTEMS --
+function spawnDNA(x, y, type) { items.push({x, y, type, life: 800}); }
+function spawnProj(o, t, type, off=0) { projectiles.push(new Projectile(o, t, type, off)); }
+function drawLightning(x1,y1,x2,y2) { ctx.strokeStyle="yellow"; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo((x1+x2)/2+(Math.random()*20-10), (y1+y2)/2+(Math.random()*20-10)); ctx.lineTo(x2,y2); ctx.stroke(); }
+function createExplosion(x,y,r,c) { ctx.fillStyle=c; ctx.globalAlpha=0.5; ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fill(); ctx.globalAlpha=1; }
+function createParticles(x,y,c,n) { for(let i=0; i<n; i++) particles.push({x,y,vx:(Math.random()-0.5)*5, vy:(Math.random()-0.5)*5,c,life:1}); }
 
-function spawnDNA(x, y, type) {
-    items.push({x, y, type, life: 600});
-}
-
-function spawnProj(owner, target, type, offset=0) {
-    projectiles.push(new Projectile(owner, target, type, offset));
-}
-
-function drawLightning(x1, y1, x2, y2) {
-    ctx.strokeStyle = "yellow"; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.moveTo(x1, y1); 
-    let midX = (x1+x2)/2 + (Math.random()*20-10);
-    let midY = (y1+y2)/2 + (Math.random()*20-10);
-    ctx.lineTo(midX, midY); ctx.lineTo(x2, y2); ctx.stroke();
-}
-
-function createExplosion(x, y, r, c) {
-    ctx.fillStyle = c; ctx.globalAlpha = 0.5;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI*2); ctx.fill();
-    ctx.globalAlpha = 1;
-}
-
-function createParticles(x, y, c, n) {
-    for(let i=0; i<n; i++) particles.push({x, y, vx:(Math.random()-0.5)*5, vy:(Math.random()-0.5)*5, c, life:1});
-}
-
-// -- UI LAB LOGIC --
-
+// -- UI --
 function renderInventory() {
-    const div = document.getElementById('dna-inventory');
-    div.innerHTML = "";
-    
+    const div = document.getElementById('dna-inventory'); div.innerHTML = "";
     MUTATION_KEYS.forEach(k => {
         if(inventory[k] > 0) {
-            let el = document.createElement('div');
-            el.className = "dna-item";
-            if(selectedDNA === k) el.className += " selected";
+            let el = document.createElement('div'); el.className = "dna-item" + (selectedDNA===k?" selected":"");
             el.innerHTML = `<span style="color:${MUTATIONS[k].color}">${MUTATIONS[k].name}</span> <span class="dna-count">x${inventory[k]}</span>`;
             el.onclick = () => { selectedDNA = k; renderInventory(); updateInspector(); };
             div.appendChild(el);
         }
     });
 }
-
-function selectUnit(u) {
-    selectedUnit = u;
-    document.getElementById('unit-inspector').style.display = 'flex';
-    document.getElementById('subjectId').innerText = u.id;
-    updateInspector();
-}
-
-function deselectUnit() {
-    selectedUnit = null;
-    document.getElementById('unit-inspector').style.display = 'none';
-}
-
+function selectUnit(u) { selectedUnit = u; document.getElementById('unit-inspector').style.display='flex'; updateInspector(); }
+function deselectUnit() { selectedUnit = null; document.getElementById('unit-inspector').style.display='none'; }
 function updateInspector() {
     if(!selectedUnit) return;
-    
     let slots = [document.getElementById('slot1'), document.getElementById('slot2')];
-    slots[0].className = "slot"; slots[0].innerText = "Empty Slot";
-    slots[1].className = "slot"; slots[1].innerText = "Empty Slot";
-    
-    selectedUnit.mutations.forEach((m, i) => {
-        if(i < 2) {
-            slots[i].className = "slot filled";
-            slots[i].style.color = MUTATIONS[m].color;
-            slots[i].innerText = MUTATIONS[m].name;
-        }
-    });
-    
+    selectedUnit.mutations.forEach((m, i) => { if(i<2) { slots[i].className="slot filled"; slots[i].style.color=MUTATIONS[m].color; slots[i].innerText=MUTATIONS[m].name; } });
+    if(selectedUnit.mutations.length<1) slots[0].innerText = "Empty"; if(selectedUnit.mutations.length<2) slots[1].innerText = "Empty";
     let btn = document.getElementById('btnInject');
-    // Logic: Can inject if Unit has space AND Player selected DNA AND has Biomass
-    if(selectedUnit.mutations.length < 2 && selectedDNA && biomass >= 50) {
-        btn.disabled = false;
-        btn.innerText = `INJECT ${MUTATIONS[selectedDNA].name} (50 Bio)`;
-    } else {
-        btn.disabled = true;
-        if(selectedUnit.mutations.length >= 2) btn.innerText = "Unit Full";
-        else if (!selectedDNA) btn.innerText = "Select DNA";
-        else btn.innerText = "Need 50 Biomass";
-    }
+    if(selectedUnit.mutations.length < 2 && selectedDNA && biomass >= 50) { btn.disabled = false; btn.innerText = `INJECT ${MUTATIONS[selectedDNA].name} (50 Bio)`; }
+    else { btn.disabled = true; btn.innerText = selectedUnit.mutations.length>=2?"Unit Full":(selectedDNA?"Need 50 Bio":"Select DNA"); }
 }
-
 function injectMutation() {
-    if(selectedUnit && selectedDNA && biomass >= 50 && selectedUnit.mutations.length < 2) {
-        biomass -= 50;
-        inventory[selectedDNA]--;
-        selectedUnit.mutations.push(selectedDNA);
-        selectedUnit.maxHp += 50;
-        selectedUnit.hp += 50;
-        
-        // Reset choice if empty
-        if(inventory[selectedDNA] <= 0) selectedDNA = null;
-        
-        renderInventory();
-        updateInspector();
-        createParticles(selectedUnit.x, selectedUnit.y, "#00aaff", 20);
+    if(selectedUnit && selectedDNA && biomass >= 50) {
+        biomass -= 50; inventory[selectedDNA]--; selectedUnit.mutations.push(selectedDNA);
+        selectedUnit.maxHp+=50; selectedUnit.hp+=50;
+        if(inventory[selectedDNA]<=0) selectedDNA=null;
+        renderInventory(); updateInspector(); createParticles(selectedUnit.x, selectedUnit.y, "#00aaff", 20);
     }
 }
 
-// -- MAIN LOOP --
-
-// Starter Army
-army.push(new Creature(200, 300, 'blue'));
-army.push(new Creature(220, 320, 'blue'));
+// -- LOOP --
+// START WITH 4 UNITS FOR EASIER START
+for(let i=0; i<4; i++) army.push(new Creature(200 + (i*30), 300, 'blue'));
 
 function loop() {
-    ctx.fillStyle = "#050505";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = "#050505"; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    gameTime++;
+
+    // SLOWER ENEMY SPAWN AT START
+    let spawnRate = 0.005 + (gameTime * 0.00001); // Slowly increases
+    if(gameTime < 500) spawnRate = 0.005; // Warm up phase
     
-    // Spawner
-    if(enemies.length < 4 + (army.length/2) && Math.random() < 0.02) {
+    if(enemies.length < 3 + (army.length/1.5) && Math.random() < spawnRate) {
         let type = MUTATION_KEYS[Math.floor(Math.random()*MUTATION_KEYS.length)];
-        let e = new Creature(canvas.width, Math.random()*canvas.height, 'red', [type]);
-        enemies.push(e);
+        enemies.push(new Creature(canvas.width, Math.random()*canvas.height, 'red', [type]));
     }
 
-    // Process Entities
-    [...army, ...enemies].forEach(c => {
-        c.update();
-        c.draw();
-    });
+    [...army, ...enemies].forEach(c => { c.update(); c.draw(); });
     
-    // Remove dead
+    // Death & Cleanup
     for(let i=army.length-1; i>=0; i--) if(army[i].hp<=0) army.splice(i,1);
     for(let i=enemies.length-1; i>=0; i--) {
         if(enemies[i].hp<=0) {
-            // Drop Loot
-            let type = enemies[i].mutations[0];
-            if(type) spawnDNA(enemies[i].x, enemies[i].y, type);
-            biomass += 10;
-            enemies.splice(i,1);
+            let type = enemies[i].mutations[0]; if(type) spawnDNA(enemies[i].x, enemies[i].y, type);
+            biomass += 20; enemies.splice(i,1);
         }
     }
-
-    // Projectiles
-    for(let i=projectiles.length-1; i>=0; i--) {
-        projectiles[i].update(); projectiles[i].draw();
-        if(projectiles[i].life <= 0) projectiles.splice(i,1);
-    }
-
-    // Items (DNA Vials)
+    for(let i=projectiles.length-1; i>=0; i--) { projectiles[i].update(); projectiles[i].draw(); if(projectiles[i].life<=0) projectiles.splice(i,1); }
     for(let i=items.length-1; i>=0; i--) {
-        let it = items[i];
-        ctx.fillStyle = MUTATIONS[it.type].color;
-        ctx.beginPath(); ctx.moveTo(it.x-4, it.y); ctx.lineTo(it.x+4, it.y);
-        ctx.lineTo(it.x+4, it.y-10); ctx.lineTo(it.x-4, it.y-10); ctx.fill();
+        let it = items[i]; it.life--;
+        ctx.fillStyle = MUTATIONS[it.type].color; ctx.beginPath(); ctx.rect(it.x-5,it.y-5,10,10); ctx.fill();
         ctx.fillStyle="white"; ctx.font="10px Arial"; ctx.fillText("DNA", it.x-10, it.y+10);
-        
-        // Collect
-        if(Math.hypot(mouseX-it.x, mouseY-it.y) < 20) {
-            inventory[it.type]++;
-            renderInventory();
-            biomass += 5; // Bonus bio
-            items.splice(i,1);
-        }
+        if(Math.hypot(mouseX-it.x, mouseY-it.y) < 25) { inventory[it.type]++; renderInventory(); biomass += 5; items.splice(i,1); }
+        else if(it.life<=0) items.splice(i,1);
     }
+    for(let i=particles.length-1; i>=0; i--) { let p = particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=0.05; ctx.globalAlpha=p.life; ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x,p.y,2,0,Math.PI*2); ctx.fill(); if(p.life<=0) particles.splice(i,1); }
+    ctx.globalAlpha=1;
 
-    // Particles
-    for(let i=particles.length-1; i>=0; i--) {
-        let p = particles[i]; p.x+=p.vx; p.y+=p.vy; p.life-=0.05;
-        ctx.globalAlpha = p.life; ctx.fillStyle=p.c; ctx.beginPath(); ctx.arc(p.x, p.y, 2,0,Math.PI*2); ctx.fill();
-        if(p.life<=0) particles.splice(i,1);
-    }
-    ctx.globalAlpha = 1;
-
-    // UI Updates
     document.getElementById('bioDisplay').innerText = biomass;
-
-    // Game Over
-    if(army.length === 0 && biomass < 50) {
-        ctx.fillStyle = "white"; ctx.font = "30px Arial"; ctx.fillText("GAME OVER - CLICK TO RESTART", canvas.width/2-200, canvas.height/2);
-        canvas.onclick = () => location.reload();
-    } else {
-        requestAnimationFrame(loop);
-    }
+    if(army.length === 0 && biomass < 50) { ctx.fillStyle = "white"; ctx.font = "30px Arial"; ctx.fillText("GAME OVER - RELOAD", canvas.width/2-150, canvas.height/2); }
+    else requestAnimationFrame(loop);
 }
 
-// Initial Render
 renderInventory();
 loop();
-
 </script>
 </body>
 </html>
